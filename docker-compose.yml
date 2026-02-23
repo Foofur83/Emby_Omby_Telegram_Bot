@@ -1,8 +1,9 @@
 version: '3.8'
 
-services:
-  emby-bot:
-    image: foofur/emby-telegram-bot:latest
+    services:
+    emby-bot:
+    build:
+      context: https://github.com/Foofur83/Emby_Omby_Telegram_Bot.git
     container_name: telegram-emby-bot
     restart: unless-stopped
     volumes:
