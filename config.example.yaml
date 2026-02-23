@@ -1,0 +1,16 @@
+# Example configuration for Emby Bot
+# Copy this to `config.yaml` and fill in real values (do NOT commit secrets).
+
+admin_telegram_id: 1234567890        # Your Telegram user ID for admin actions
+emby_api_key: "YOUR_EMBY_API_KEY"
+emby_url: "http://192.168.1.2:8096"
+ombi_api_key: "YOUR_OMBI_API_KEY"
+ombi_api_key_header: "ApiKey"
+ombi_url: "http://192.168.1.5:3579"
+poll_interval_seconds: 60
+telegram_token: "YOUR_TELEGRAM_BOT_TOKEN"
+
+# Web UI settings
+# Configure which port and host the web interface should bind to.
+web_ui_port: 5000
+web_ui_host: "0.0.0.0"
