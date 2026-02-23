@@ -7,9 +7,7 @@ services:
     build: .
     container_name: emby-app
     restart: unless-stopped
-    # Start both the web UI and the Telegram bot in one container.
-    # Using a simple shell command to background the web UI process.
-    command: sh -c "python web_ui.py & python bot.py"
+    # Supervisord will start both the web UI and the Telegram bot
     ports:
       - "5000:5000"
     volumes:
