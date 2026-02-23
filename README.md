@@ -453,6 +453,27 @@ server {
 }
 ```
 
+### Docker (single-container, supervisord)
+
+Voor een eenvoudige deploy met één container draait de image `supervisord` die zowel de web UI als de Telegram bot beheert.
+
+Build en start:
+```bash
+docker compose build
+docker compose up -d
+```
+
+Bekijk logs:
+```bash
+docker compose logs -f
+```
+
+Belangrijk:
+- Gebruik `config.example.yaml` als basis en plaats je werkelijke `config.yaml` lokaal (niet committen).
+- De container draait beide processen; bij een crash van één proces zal `supervisord` proberen deze opnieuw te starten.
+- Voor productie kun je in plaats daarvan twee containers gebruiken of een procesmonitor op hostniveau.
+
+
 ### Monitoring
 
 **Check logs:**

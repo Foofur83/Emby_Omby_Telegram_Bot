@@ -3,11 +3,14 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Install supervisor for process management
-RUN apt-get update && apt-get install -y supervisor && rm -rf /var/lib/apt/lists/*
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends supervisor \
+	&& rm -rf /var/lib/apt/lists/*
 
 # Kopieer requirements en installeer Python packages
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt \
+	&& python -m pip cache purge || true
 
 # Kopieer applicatie code
 COPY bot.py web_ui.py ./
