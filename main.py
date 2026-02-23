@@ -6,14 +6,36 @@ import sys
 import subprocess
 import os
 import time
+import shutil
 import yaml
 
 def main():
-    # Check if config exists
+    # Check if config exists; if not, create from example or write a placeholder
     if not os.path.exists("config.yaml"):
-        print("\n❌ ERROR: config.yaml not found!")
-        print("📝 Copy config.yaml.example and fill in your details")
-        sys.exit(1)
+        if os.path.exists("config.example.yaml"):
+            try:
+                shutil.copyfile("config.example.yaml", "config.yaml")
+                print("\nℹ️  `config.yaml` not found — created from `config.example.yaml`. Please review and edit.")
+            except Exception as e:
+                print(f"\n⚠️ Failed to create config.yaml from example: {e}")
+        else:
+            # Write a minimal placeholder config so the app can start
+            placeholder = (
+                "admin_telegram_id: 0\n"
+                "emby_api_key: \"\"\n"
+                "emby_url: \"http://127.0.0.1:8096\"\n"
+                "ombi_api_key: \"\"\n"
+                "ombi_api_key_header: ApiKey\n"
+                "ombi_url: \"http://127.0.0.1:3579\"\n"
+                "poll_interval_seconds: 60\n"
+                "telegram_token: \"\"\n"
+            )
+            try:
+                with open("config.yaml", "w", encoding="utf-8") as f:
+                    f.write(placeholder)
+                print("\nℹ️  `config.yaml` not found — a placeholder `config.yaml` has been created. Please edit with your settings.")
+            except Exception as e:
+                print(f"\n⚠️ Failed to create placeholder config.yaml: {e}")
     
     print("\n" + "="*60)
     print("🤖 EMBY BOT - Starting beide services...")
