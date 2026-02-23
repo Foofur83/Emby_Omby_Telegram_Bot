@@ -11,9 +11,9 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      - ./data:/app/data
-      - ./config:/app/config    # mount a directory, not a file — app will auto-create config/config.yaml
-      - ./templates:/app/templates
+      - config_data:/app/config    # named volume: stores config inside Docker (no host path required)
+      - data:/app/data             # named volume for persistent data
+      - templates:/app/templates   # named volume for templates (optional)
     environment:
       - TZ=Europe/Amsterdam
     networks:
@@ -22,3 +22,8 @@ services:
 networks:
   default:
     driver: bridge
+
+volumes:
+  config_data:
+  data:
+  templates:
