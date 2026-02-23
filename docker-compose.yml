@@ -12,6 +12,7 @@ services:
       - "5000:5000"
     volumes:
       - ./data:/app/data
+      - ./config:/app/config    # mount a directory, not a file — app will auto-create config/config.yaml
       - ./templates:/app/templates
     environment:
       - TZ=Europe/Amsterdam

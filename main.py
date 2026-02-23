@@ -10,32 +10,50 @@ import shutil
 import yaml
 
 def main():
-    # Check if config exists; if not, create from example or write a placeholder
-    if not os.path.exists("config.yaml"):
+    # Ensure a usable config file exists. Prefer a mounted ./config directory
+    # (mounted as /app/config) and create /app/config/config.yaml if missing.
+    app_cwd = os.getcwd()
+    dir_config_path = os.path.join(app_cwd, "config", "config.yaml")
+    root_config_path = os.path.join(app_cwd, "config.yaml")
+
+    def _create_from_example(target_path):
         if os.path.exists("config.example.yaml"):
             try:
-                shutil.copyfile("config.example.yaml", "config.yaml")
-                print("\nℹ️  `config.yaml` not found — created from `config.example.yaml`. Please review and edit.")
+                os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                shutil.copyfile("config.example.yaml", target_path)
+                print(f"\nℹ️  Created {target_path} from config.example.yaml. Please review and edit.")
+                return True
             except Exception as e:
-                print(f"\n⚠️ Failed to create config.yaml from example: {e}")
-        else:
-            # Write a minimal placeholder config so the app can start
-            placeholder = (
-                "admin_telegram_id: 0\n"
-                "emby_api_key: \"\"\n"
-                "emby_url: \"http://127.0.0.1:8096\"\n"
-                "ombi_api_key: \"\"\n"
-                "ombi_api_key_header: ApiKey\n"
-                "ombi_url: \"http://127.0.0.1:3579\"\n"
-                "poll_interval_seconds: 60\n"
-                "telegram_token: \"\"\n"
-            )
-            try:
-                with open("config.yaml", "w", encoding="utf-8") as f:
-                    f.write(placeholder)
-                print("\nℹ️  `config.yaml` not found — a placeholder `config.yaml` has been created. Please edit with your settings.")
-            except Exception as e:
-                print(f"\n⚠️ Failed to create placeholder config.yaml: {e}")
+                print(f"\n⚠️ Failed to create {target_path} from example: {e}")
+                return False
+        return False
+
+    if not os.path.exists(dir_config_path):
+        # Try to create inside ./config first
+        created = _create_from_example(dir_config_path)
+        if not created:
+            # Fallback to root-level config.yaml
+            if not os.path.exists(root_config_path):
+                if _create_from_example(root_config_path):
+                    pass
+                else:
+                    # Create a minimal placeholder in the preferred directory
+                    try:
+                        os.makedirs(os.path.dirname(dir_config_path), exist_ok=True)
+                        with open(dir_config_path, "w", encoding="utf-8") as f:
+                            f.write(
+                                "admin_telegram_id: 0\n"
+                                "emby_api_key: \"\"\n"
+                                "emby_url: \"http://127.0.0.1:8096\"\n"
+                                "ombi_api_key: \"\"\n"
+                                "ombi_api_key_header: ApiKey\n"
+                                "ombi_url: \"http://127.0.0.1:3579\"\n"
+                                "poll_interval_seconds: 60\n"
+                                "telegram_token: \"\"\n"
+                            )
+                        print(f"\nℹ️  Created placeholder config at {dir_config_path}. Please edit with real values.")
+                    except Exception as e:
+                        print(f"\n⚠️ Failed to create placeholder config at {dir_config_path}: {e}")
     
     print("\n" + "="*60)
     print("🤖 EMBY BOT - Starting beide services...")
