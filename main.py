@@ -6,6 +6,7 @@ import sys
 import subprocess
 import os
 import time
+import yaml
 
 def main():
     # Check if config exists
@@ -19,7 +20,17 @@ def main():
     print("="*60 + "\n")
     
     # Start web interface in separate console window (Windows) or background (Linux)
-    print("🌐 Starting Web Interface op http://localhost:5000")
+    # Determine port from config.yaml if present so message matches actual port
+    web_port = 5000
+    try:
+        if os.path.exists('config.yaml'):
+            with open('config.yaml', 'r', encoding='utf-8') as f:
+                cfg = yaml.safe_load(f) or {}
+                web_port = int(cfg.get('web_ui_port') or cfg.get('web_port') or web_port)
+    except Exception:
+        web_port = 5000
+
+    print(f"🌐 Starting Web Interface op http://localhost:{web_port}")
     if sys.platform == 'win32':
         # Windows: open in new console window
         web_process = subprocess.Popen(

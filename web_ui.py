@@ -240,6 +240,14 @@ def save_json(filepath, data):
 
 
 if __name__ == '__main__':
-    print("🌐 Web interface gestart op http://localhost:5000")
+    # Lees poort (config.yaml) indien aanwezig, anders fallback naar 5000
+    cfg = load_yaml(CONFIG_FILE)
+    try:
+        port = int(cfg.get('web_ui_port') or cfg.get('web_port') or 5000)
+    except Exception:
+        port = 5000
+    host = cfg.get('web_ui_host', '0.0.0.0')
+
+    print(f"🌐 Web interface gestart op http://localhost:{port}")
     print("📝 Standaard wachtwoord: admin123 (VERANDER DIT!)")
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host=host, port=port, debug=True)
