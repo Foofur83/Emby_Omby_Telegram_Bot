@@ -1,30 +1,21 @@
 version: '3.8'
 
-services:
-  emby-bot:
-    build:
-      context: https://github.com/Foofur83/Emby_Omby_Telegram_Bot.git
-    container_name: telegram-emby-bot
-    restart: unless-stopped
-    volumes:
-      - /mnt/Persistentstorage/Emby-Ombi_Bot:/config
-      - /mnt/Persistentstorage/Emby-Ombi_Bot/data:/app/data
-    environment:
-      - TZ=Europe/Amsterdam
-    networks:
-      - default
+version: '3.8'
 
-  web-ui:
-    image: foofur/emby-telegram-bot:latest
-    container_name: emby-bot-webui
+services:
+  emby-app:
+    build: .
+    container_name: emby-app
     restart: unless-stopped
-    command: python web_ui.py
+    # Start both the web UI and the Telegram bot in one container.
+    # Using a simple shell command to background the web UI process.
+    command: sh -c "python web_ui.py & python bot.py"
     ports:
-      - "4000:4000"
+      - "5000:5000"
     volumes:
-      - /mnt/Persistentstorage/Emby-Ombi_Bot:/config
-      - /mnt/Persistentstorage/Emby-Ombi_Bot/data:/app/data
-      - /mnt/Persistentstorage/Emby-Ombi_Bot/templates:/app/templates
+      - ./data:/app/data
+      - ./config.yaml:/app/config.yaml
+      - ./templates:/app/templates
     environment:
       - TZ=Europe/Amsterdam
     networks:
