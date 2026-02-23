@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+
+{% block title %}Aanvragen - Emby Bot{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <h2>📋 Alle Aanvragen</h2>
+        <div style="display: flex; gap: 0.5rem;">
+            <form method="post" action="{{ url_for('clear_completed_requests') }}" style="display: inline;">
+                <button type="submit" class="btn btn-warning" 
+                        onclick="return confirm('Weet je zeker dat je alle voltooide aanvragen wilt wissen?')">
+                    🧹 Wis Voltooide
+                </button>
+            </form>
+            <button type="button" class="btn btn-danger" 
+                    onclick="document.getElementById('clearAllModal').style.display='flex'">
+                🗑️ Wis Alles
+            </button>
+        </div>
+    </div>
+
+    {% if requests %}
+    <table>
+        <thead>
+            <tr>
+                <th>Titel</th>
+                <th>Type</th>
+                <th>Gebruiker</th>
+                <th>Aangevraagd Op</th>
+                <th>Status</th>
+                <th>Acties</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for req in requests %}
+            <tr>
+                <td>{{ req.title }}</td>
+                <td>
+                    {% if req.content_type == 'Movie' %}
+                        🎬 Film
+                    {% else %}
+                        📺 Serie
+                    {% endif %}
+                </td>
+                <td>
+                    {{ req.telegram_username or 'Onbekend' }}<br>
+                    <small style="color: #94a3b8;">ID: {{ req.telegram_user_id }}</small>
+                </td>
+                <td>{{ req.requested_at[:16] if req.requested_at else '-' }}</td>
+                <td>
+                    {% if req.notified %}
+                        <span class="badge badge-success">✅ Beschikbaar</span>
+                    {% else %}
+                        <span class="badge badge-warning">⏳ Wachten</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <form method="post" action="{{ url_for('delete_request', request_id=loop.index0) }}" style="display: inline;">
+                        <button type="submit" class="btn btn-sm btn-danger" 
+                                onclick="return confirm('Weet je zeker dat je deze aanvraag wilt verwijderen?')">
+                            🗑️ Verwijder
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    <div style="margin-top: 1rem; padding: 1rem; background: #1e293b; border-radius: 8px;">
+        <p style="margin: 0; color: #94a3b8;">
+            <strong>Totaal:</strong> {{ requests|length }} aanvragen 
+            ({{ requests|selectattr('notified')|list|length }} beschikbaar, 
+            {{ requests|rejectattr('notified')|list|length }} wachten)
+        </p>
+    </div>
+    {% else %}
+    <p style="color: #94a3b8;">Nog geen aanvragen.</p>
+    {% endif %}
+</div>
+
+<!-- Modal voor bevestiging alles wissen -->
+<div id="clearAllModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; z-index: 1000;">
+    <div style="background: #1e293b; padding: 2rem; border-radius: 12px; max-width: 500px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+        <h3 style="margin-top: 0; color: #ef4444;">⚠️ Weet je het zeker?</h3>
+        <p style="color: #94a3b8;">Dit zal ALLE aanvragen permanent verwijderen. Deze actie kan niet ongedaan worden gemaakt!</p>
+        <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+            <form method="post" action="{{ url_for('clear_all_requests') }}" style="flex: 1;">
+                <input type="hidden" name="confirm" value="yes">
+                <button type="submit" class="btn btn-danger" style="width: 100%;">
+                    Ja, wis alles
+                </button>
+            </form>
+            <button type="button" class="btn btn-secondary" style="flex: 1;" 
+                    onclick="document.getElementById('clearAllModal').style.display='none'">
+                Annuleren
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+.btn-sm {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.875rem;
+}
+.btn-warning {
+    background: #f59e0b;
+    border-color: #f59e0b;
+}
+.btn-warning:hover {
+    background: #d97706;
+    border-color: #d97706;
+}
+.btn-secondary {
+    background: #64748b;
+    border-color: #64748b;
+}
+.btn-secondary:hover {
+    background: #475569;
+    border-color: #475569;
+}
+</style>
+{% endblock %}

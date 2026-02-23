@@ -1,0 +1,776 @@
+import asyncio
+import json
+import logging
+import os
+from datetime import datetime
+from urllib.parse import quote as urlquote
+
+import aiohttp
+import yaml
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, CallbackQueryHandler, filters
+
+try:
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    import torch
+    CONVERSATIONAL_AI = True
+except ImportError:
+    CONVERSATIONAL_AI = False
+    logging.warning("transformers/torch niet geïnstalleerd. Conversatie AI uitgeschakeld.")
+
+DATA_FILE = os.path.join(os.path.dirname(__file__), "data", "requests.json")
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+def ensure_data_dir():
+    d = os.path.join(os.path.dirname(__file__), "data")
+    os.makedirs(d, exist_ok=True)
+    if not os.path.exists(DATA_FILE):
+        with open(DATA_FILE, "w", encoding="utf-8") as f:
+            json.dump([], f)
+
+
+def load_requests():
+    ensure_data_dir()
+    with open(DATA_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def save_requests(data):
+    ensure_data_dir()
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+class OmbiEmbyBot:
+    def __init__(self, config: dict):
+        def _norm(u: str):
+            if not u:
+                return u
+            u = u.strip()
+            if not (u.startswith("http://") or u.startswith("https://")):
+                u = "http://" + u
+            return u.rstrip("/")
+
+        self.config = config or {}
+        # allow an explicit API base override if SPA is served at root
+        self.ombi_api_url = _norm(self.config.get("ombi_api_url"))
+        self.ombi_url = _norm(self.config.get("ombi_url"))
+        self.ombi_key = self.config.get("ombi_api_key")
+        self.ombi_key_header = self.config.get("ombi_api_key_header", "ApiKey")
+
+        self.emby_url = _norm(self.config.get("emby_url"))
+        self.emby_key = self.config.get("emby_api_key")
+
+        self.poll_interval = int(self.config.get("poll_interval_seconds", 60))
+
+        # aiohttp session created lazily inside running event loop
+        self.session: aiohttp.ClientSession | None = None
+
+    async def ensure_session(self):
+        if not self.session:
+            self.session = aiohttp.ClientSession()
+
+    async def _request_json(self, method: str, url: str, **kwargs):
+        """Perform a request and return (json_or_text, status). On connection error, retry with alternate scheme."""
+        await self.ensure_session()
+        try:
+            async with self.session.request(method, url, **kwargs) as r:
+                text = await r.text()
+                if r.status >= 400:
+                    logger.warning("Request to %s failed (%s): %s", url, r.status, text)
+                    return None, r.status
+                # try parse json
+                try:
+                    return await r.json(), r.status
+                except Exception:
+                    return text, r.status
+        except (aiohttp.ClientConnectorError, aiohttp.ClientOSError) as e:
+            # try alternate scheme
+            if url.startswith("http://"):
+                alt = "https://" + url[len("http://"):]
+            elif url.startswith("https://"):
+                alt = "http://" + url[len("https://"):]
+            else:
+                logger.warning("Connection error for %s: %s", url, e)
+                return None, None
+            logger.warning("Primary connection failed for %s: %s; retrying with %s", url, e, alt)
+            try:
+                async with self.session.request(method, alt, **kwargs) as r:
+                    text = await r.text()
+                    if r.status >= 400:
+                        logger.warning("Request to %s failed (%s): %s", alt, r.status, text)
+                        return None, r.status
+                    try:
+                        return await r.json(), r.status
+                    except Exception:
+                        return text, r.status
+            except Exception as e2:
+                logger.warning("Retry with alternate scheme failed for %s: %s", alt, e2)
+                return None, None
+        except asyncio.TimeoutError:
+            logger.warning("Request timed out: %s", url)
+            return None, None
+        except Exception:
+            logger.exception("Unexpected error during request to %s", url)
+            return None, None
+
+    async def close(self):
+        if self.session:
+            await self.session.close()
+
+    # Ombi
+    async def ombi_search(self, query: str):
+        """Search for movies and TV shows using Ombi's multi-search endpoint"""
+        if not self.ombi_url:
+            return []
+        await self.ensure_session()
+        headers = {self.ombi_key_header: self.ombi_key} if self.ombi_key else {}
+        # Use correct Ombi API endpoints (from Swagger docs)
+        url = f"{self.ombi_url}/api/v2/Search/multi/{urlquote(query)}"
+        data, status = await self._request_json("POST", url, headers=headers, timeout=10)
+        if data and not (isinstance(data, str) and "<" in data):
+            logger.info("Ombi multi-search succeeded")
+            return data if isinstance(data, list) else []
+        # Fallback to v1 movie search
+        url = f"{self.ombi_url}/api/v1/Search/movie/{urlquote(query)}"
+        data, status = await self._request_json("GET", url, headers=headers, timeout=10)
+        if data and isinstance(data, list):
+            logger.info("Ombi movie search (v1) succeeded")
+            return data
+        logger.error("Ombi search failed. Check ombi_url, ombi_api_key, and ombi_api_key_header in config.yaml")
+        return []
+
+    async def ombi_request(self, item: dict | None, media_type: str = "movie"):
+        """Request a movie or TV show in Ombi using the correct API endpoints"""
+        if not self.ombi_url or not item:
+            return None
+        await self.ensure_session()
+        headers = {self.ombi_key_header: self.ombi_key, "Content-Type": "application/json"} if self.ombi_key else {"Content-Type": "application/json"}
+        
+        # Use correct endpoint based on media type (from Swagger docs)
+        if media_type.lower() in ("tv", "series"):
+            url = f"{self.ombi_url}/api/v2/Requests/tv"
+        else:
+            url = f"{self.ombi_url}/api/v1/Request/movie"
+        
+        data, status = await self._request_json("POST", url, headers=headers, json=item, timeout=10)
+        if data and not (isinstance(data, str) and "<" in data):
+            logger.info("Ombi %s request succeeded", media_type)
+            return data
+        logger.error("Ombi %s request failed. Check configuration.", media_type)
+        return None
+
+    # Emby
+    async def emby_search(self, title: str, content_type: str = "Movie"):
+        if not self.emby_url:
+            return None
+        await self.ensure_session()
+        url = f"{self.emby_url}/Items"
+        params = {"searchTerm": title, "IncludeItemTypes": content_type}
+        headers = {"X-Emby-Token": self.emby_key} if self.emby_key else {}
+        data, status = await self._request_json("GET", url, params=params, headers=headers, timeout=10)
+        return data
+
+
+class DutchConversationalAI:
+    """Nederlandse conversatie AI met GroNLP/gpt2-small-dutch"""
+    
+    def __init__(self):
+        self.model = None
+        self.tokenizer = None
+        self.enabled = CONVERSATIONAL_AI
+        self.model_name = "GroNLP/gpt2-small-dutch"
+        
+    def load_model(self):
+        """Laad het model lazy bij eerste gebruik"""
+        if not self.enabled or self.model is not None:
+            return
+        
+        try:
+            logger.info("Laden van Nederlands GPT-2 model (~500MB download bij eerste keer)...")
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+            self.model = AutoModelForCausalLM.from_pretrained(self.model_name)
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+            logger.info("✓ Nederlandse conversatie AI klaar")
+        except Exception as e:
+            logger.error("Kon conversatie model niet laden: %s", e)
+            self.enabled = False
+    
+    async def generate_response(self, user_message: str, max_new_tokens: int = 50) -> str:
+        """Genereer een Nederlandse reactie"""
+        if not self.enabled:
+            return None
+        
+        if self.model is None:
+            self.load_model()
+        
+        if not self.model:
+            return None
+        
+        try:
+            # Simpele prompt voor natuurlijke conversatie
+            prompt = user_message.strip()
+            
+            inputs = self.tokenizer(prompt, return_tensors="pt", padding=True, truncation=True, max_length=128)
+            
+            with torch.no_grad():
+                outputs = self.model.generate(
+                    inputs["input_ids"],
+                    max_new_tokens=max_new_tokens,
+                    num_return_sequences=1,
+                    temperature=0.7,
+                    do_sample=True,
+                    top_k=50,
+                    top_p=0.9,
+                    pad_token_id=self.tokenizer.eos_token_id,
+                    no_repeat_ngram_size=3,
+                    early_stopping=True
+                )
+            
+            response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+            
+            # Verwijder de originele prompt als die er nog in zit
+            if response.startswith(prompt):
+                response = response[len(prompt):].strip()
+            
+            # Neem alleen de eerste zin
+            for delimiter in ['.', '!', '?']:
+                if delimiter in response:
+                    response = response.split(delimiter)[0] + delimiter
+                    break
+            
+            response = response.strip()
+            
+            # Kwaliteitscontrole
+            if len(response) < 5 or len(response) > 150:
+                return None
+            
+            # Geen vreemde patronen
+            if response.count('\n') > 1 or any(char * 3 in response for char in 'abcdefghijklmnopqrstuvwxyz'):
+                return None
+            
+            return response
+            
+        except Exception as e:
+            logger.warning("AI reactie generatie mislukt: %s", e)
+            return None
+
+
+
+
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "Hoi! Ik kan je helpen met het aanvragen van films en series.\n\n"
+        "Vertel me gewoon wat je wilt kijken, bijvoorbeeld:\n"
+        "• \"Ik wil Inception kijken\"\n"
+        "• \"Voeg Breaking Bad toe\"\n"
+        "• \"Zoek The Matrix\"\n\n"
+        "Ik zoek het voor je op en laat je kiezen uit de resultaten!"
+    )
+
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "Vertel me gewoon wat je wilt kijken!\n\n"
+        "Voorbeelden:\n"
+        "• \"Ik wil Dune kijken\"\n"
+        "• \"Voeg Game of Thrones toe\"\n"
+        "• \"Zoek Interstellar\"\n\n"
+        "/status - Toon je aanvragen\n\n"
+        "Je kunt ook gewoon met me praten!"
+    )
+
+
+async def request_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "💡 Je hoeft /request niet meer te gebruiken!\n\n"
+        "Vertel me gewoon wat je wilt, zoals:\n"
+        "• \"Ik wil Dune kijken\"\n"
+        "• \"Voeg The Matrix toe\"\n"
+        "• \"Zoek Stranger Things\"\n\n"
+        "Probeer het nu!"
+    )
+
+
+async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    records = load_requests()
+    yours = [r for r in records if r.get("telegram_user_id") == user.id]
+    if not yours:
+        await update.message.reply_text("You have no saved requests.")
+        return
+    texts = [f"- {r.get('title')} ({'Notified' if r.get('notified') else 'Pending'})" for r in yours]
+    await update.message.reply_text("\n".join(texts))
+
+
+def extract_title_from_message(text: str) -> str | None:
+    """Extract movie/TV title from natural language request (Nederlands + Engels)"""
+    text_lower = text.lower().strip()
+    
+    # Request keywords (Nederlands + Engels)
+    request_keywords = [
+        # Nederlands
+        "kijken", "zoeken", "toevoegen", "voeg toe", "vind", "zoek", "wil", "wilt", 
+        "graag", "download", "heb nodig", "kan je", "kun je", "wil graag", "zou graag",
+        "laat zien", "geef me", "zoek naar", "ik wil", "we willen",
+        # Engels
+        "watch", "add", "request", "get", "find", "search", "want", "need",
+        "looking for", "can you", "could you", "would you", "i'd like", "show me"
+    ]
+    
+    # Check if this looks like a request
+    has_keyword = any(kw in text_lower for kw in request_keywords)
+    
+    if not has_keyword:
+        return None
+    
+    # Remove common request phrases (Nederlands + Engels)
+    patterns_to_remove = [
+        # Nederlands
+        r"^(kan je|kun je|kunt je|zou je|wil je|kun jij|kan jij)\s+",
+        r"^(ik wil|ik zou|ik wilt|we willen|wij willen|graag)\s+",
+        r"^(laat|geef|toon|laat zien|geef me|toon me)\s+",
+        r"\b(kijken|zoeken|toevoegen|vinden|downloaden|hebben|zien)\s+",
+        r"\b(voeg toe|zoek naar|zoek|vind|pak|haal op)\s+",
+        r"^(de film|de serie|de show|film|serie|show|een film|een serie)\s+",
+        # Engels
+        r"^(can you|could you|would you|please|i want to|i'd like to|i want|i need|looking for)\s+",
+        r"\b(watch|add|request|get|find|search|search for|show me)\s+",
+        r"^(the movie|the show|the series|movie|show|series)\s+",
+    ]
+    
+    import re
+    cleaned = text
+    for pattern in patterns_to_remove:
+        cleaned = re.sub(pattern, "", cleaned, flags=re.IGNORECASE)
+    
+    cleaned = cleaned.strip().strip('"').strip("'").strip()
+    
+    # If we have something left, return it
+    if len(cleaned) > 1:
+        return cleaned
+    
+    return None
+
+
+async def show_suggestion(update: Update, context: ContextTypes.DEFAULT_TYPE, result: dict, index: int, total: int, state: dict):
+    """Toon 1 suggestie met poster en ja/nee knoppen"""
+    name = result.get("title") or result.get("name", "Onbekend")
+    media_type = result.get("mediaType", "Unknown")
+    year = (result.get("releaseDate") or result.get("firstAired") or "")[:4]
+    overview = result.get("overview", "Geen beschrijving beschikbaar")[:200]
+    
+    caption = f"📽️ **{name}** ({media_type} {year})\n\n{overview}\n\n({index + 1}/{total})"
+    
+    # Probeer poster te vinden
+    poster_url = None
+    if result.get("posterPath"):
+        # TMDB poster
+        poster_url = f"https://image.tmdb.org/t/p/w500{result['posterPath']}"
+    
+    # Inline keyboard met ja/nee
+    keyboard = [
+        [
+            InlineKeyboardButton("✅ Ja, deze!", callback_data=f"accept_{index}"),
+            InlineKeyboardButton("❌ Nee, volgende", callback_data=f"next_{index}")
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    try:
+        if poster_url:
+            await update.message.reply_photo(
+                photo=poster_url,
+                caption=caption,
+                reply_markup=reply_markup,
+                parse_mode="Markdown"
+            )
+        else:
+            await update.message.reply_text(
+                caption,
+                reply_markup=reply_markup,
+                parse_mode="Markdown"
+            )
+    except Exception as e:
+        logger.warning(f"Failed to send photo: {e}")
+        await update.message.reply_text(
+            caption,
+            reply_markup=reply_markup,
+            parse_mode="Markdown"
+        )
+
+
+async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle inline keyboard button presses"""
+    query = update.callback_query
+    await query.answer()
+    
+    user = query.from_user
+    data = query.data
+    
+    pending = context.application.bot_data.setdefault("pending", {})
+    state = pending.get(user.id)
+    
+    if not state or "results" not in state:
+        await query.edit_message_caption(caption="⚠️ Sessie verlopen. Probeer opnieuw te zoeken.")
+        return
+    
+    results = state["results"]
+    current_index = state.get("current_index", 0)
+    
+    if data.startswith("accept_"):
+        # Gebruiker accepteert deze suggestie
+        result = results[current_index]
+        await query.edit_message_caption(caption=f"✅ Geselecteerd: {result.get('title') or result.get('name')}")
+        
+        # Check of het een serie is
+        media_type = result.get("mediaType", "").lower()
+        if media_type in ("tv", "series"):
+            # Vraag om seizoen keuze
+            state["selected"] = result
+            await query.message.reply_text(
+                f"Is dit voor alle seizoenen of een specifiek seizoen?\n\n"
+                "Reageer met:\n"
+                "• 'all' voor alle seizoenen\n"
+                "• Een nummer (bijv. '1' voor seizoen 1)"
+            )
+        else:
+            # Film - direct aanvragen
+            bot: OmbiEmbyBot = context.application.bot_data["bot_instance"]
+            await query.message.reply_text(f"Aanvragen van '{result.get('title')}'...")
+            resp = await bot.ombi_request(result, media_type="movie")
+            if resp:
+                records = load_requests()
+                records.append({
+                    "telegram_user_id": user.id,
+                    "telegram_username": user.username,
+                    "title": result.get('title') or result.get('name'),
+                    "content_type": "Movie",
+                    "ombi_response": resp,
+                    "requested_at": datetime.utcnow().isoformat(),
+                    "notified": False
+                })
+                save_requests(records)
+                await query.message.reply_text("✅ Aanvraag opgeslagen! Ik laat je weten als het in Emby staat.")
+            else:
+                await query.message.reply_text("❌ Aanvragen mislukt. Check de bot logs.")
+            pending.pop(user.id, None)
+    
+    elif data.startswith("next_"):
+        # Volgende suggestie
+        next_index = current_index + 1
+        if next_index >= len(results):
+            await query.edit_message_caption(caption="❌ Geen resultaten meer. Probeer een andere zoekopdracht.")
+            pending.pop(user.id, None)
+            return
+        
+        state["current_index"] = next_index
+        await query.delete_message()
+        # Stuur nieuwe suggestie als regulier bericht
+        await show_suggestion(query, context, results[next_index], next_index, len(results), state)
+
+
+async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text.strip()
+    user = update.effective_user
+
+    pending = context.application.bot_data.setdefault("pending", {})
+    state = pending.get(user.id)
+    
+    # Check if we're waiting for media type
+    if state and state.get("awaiting_type"):
+        text_lower = text.lower()
+        title = state.get("title")
+        
+        # Detect film or serie
+        media_type = None
+        if any(word in text_lower for word in ["film", "movie"]):
+            media_type = "movie"
+        elif any(word in text_lower for word in ["serie", "series", "show", "tv"]):
+            media_type = "tv"
+        else:
+            await update.message.reply_text("Ik begrijp niet of je een film of serie bedoelt. Reageer met 'film' of 'serie'.")
+            return
+        
+        # Search in Ombi
+        bot: OmbiEmbyBot = context.application.bot_data["bot_instance"]
+        await update.message.reply_text(f"🔍 Zoeken naar {title}...")
+        results = await bot.ombi_search(title)
+        
+        if not results:
+            await update.message.reply_text("Sorry, ik kon dat niet vinden. Probeer het anders te formuleren.")
+            pending.pop(user.id, None)
+            return
+        
+        # Filter results by media type
+        filtered = [r for r in results if r.get("mediaType", "").lower() in (media_type, "tv" if media_type == "tv" else "movie")]
+        if not filtered:
+            filtered = results  # Fallback to all results
+        
+        # Save results and show first one
+        state["results"] = filtered
+        state["current_index"] = 0
+        state.pop("awaiting_type", None)
+        
+        await show_suggestion(update, context, filtered[0], 0, len(filtered), state)
+        return
+    
+    if state:
+        # Handle season selection for TV shows
+        if state.get("selected"):
+            sel = state["selected"]
+            title = sel.get("title") or sel.get("name")
+            bot: OmbiEmbyBot = context.application.bot_data["bot_instance"]
+            if 0 <= idx < len(choices):
+                choice = choices[idx]
+                bot: OmbiEmbyBot = context.application.bot_data["bot_instance"]
+                media_type = choice.get("mediaType", "").lower()
+                title = choice.get("title") or choice.get("name")
+                
+                # Check if TV show
+                if media_type in ("tv", "series"):
+                    await update.message.reply_text(
+                        f"Geselecteerd: {title}\n\nReageer met:\n"
+                        "• 'all' voor alle seizoenen\n"
+                        "• Een seizoen nummer (bijv. '1' of '2') voor een specifiek seizoen"
+                    )
+                    pending[user.id] = {"selected": choice}
+                    return
+                
+                # Movie - check Emby first
+                emby_check = await bot.emby_search(title, content_type="Movie")
+                if emby_check and isinstance(emby_check, dict) and (emby_check.get("TotalRecordCount") or emby_check.get("Items")):
+                    await update.message.reply_text(f"✅ '{title}' staat al in Emby.")
+                    records = load_requests()
+                    records.append({"telegram_user_id": user.id, "telegram_username": user.username, "title": title, "content_type": "Movie", "ombi_response": None, "requested_at": datetime.utcnow().isoformat(), "notified": True})
+                    save_requests(records)
+                    pending.pop(user.id, None)
+                    return
+                
+                # Request via Ombi
+                await update.message.reply_text(f"Aanvragen van '{title}' bij Ombi...")
+                resp = await bot.ombi_request(choice, media_type="movie")
+                if resp:
+                    records = load_requests()
+                    records.append({"telegram_user_id": user.id, "telegram_username": user.username, "title": title, "content_type": "Movie", "ombi_response": resp, "requested_at": datetime.utcnow().isoformat(), "notified": False})
+                    save_requests(records)
+                    await update.message.reply_text("✅ Aanvraag opgeslagen! Ik laat je weten als het in Emby staat.")
+                else:
+                    await update.message.reply_text("❌ Aanvraag bij Ombi is mislukt.")
+                pending.pop(user.id, None)
+                return
+
+        # Handle TV series season selection
+        sel = state.get("selected")
+        if sel:
+            bot: OmbiEmbyBot = context.application.bot_data["bot_instance"]
+            title = sel.get("title") or sel.get("name")
+            
+            if text.lower() == "all":
+                # Request all seasons
+                emby_check = await bot.emby_search(title, content_type="Series")
+                if emby_check and isinstance(emby_check, dict) and (emby_check.get("TotalRecordCount") or emby_check.get("Items")):
+                    await update.message.reply_text(f"✅ '{title}' staat al in Emby.")
+                    records = load_requests()
+                    records.append({"telegram_user_id": user.id, "telegram_username": user.username, "title": title, "content_type": "Series", "ombi_response": None, "requested_at": datetime.utcnow().isoformat(), "notified": True})
+                    save_requests(records)
+                    pending.pop(user.id, None)
+                    return
+                
+                await update.message.reply_text(f"Aanvragen van hele serie '{title}' bij Ombi...")
+                resp = await bot.ombi_request(sel, media_type="tv")
+                if resp:
+                    records = load_requests()
+                    records.append({"telegram_user_id": user.id, "telegram_username": user.username, "title": title, "content_type": "Series", "ombi_response": resp, "requested_at": datetime.utcnow().isoformat(), "notified": False})
+                    save_requests(records)
+                    await update.message.reply_text("✅ Serie aangevraagd! Ik laat je weten als het in Emby staat.")
+                else:
+                    await update.message.reply_text("❌ Serie aanvragen bij Ombi mislukt.")
+                pending.pop(user.id, None)
+                return
+
+            if text.isdigit():
+                season_num = int(text)
+                emby_check = await bot.emby_search(title, content_type="Series")
+                if emby_check and isinstance(emby_check, dict) and (emby_check.get("TotalRecordCount") or emby_check.get("Items")):
+                    await update.message.reply_text(f"✅ '{title}' (seizoen {season_num}) staat al in Emby.")
+                    records = load_requests()
+                    records.append({"telegram_user_id": user.id, "telegram_username": user.username, "title": f"{title} - S{season_num}", "content_type": "Series", "ombi_response": None, "requested_at": datetime.utcnow().isoformat(), "notified": True})
+                    save_requests(records)
+                    pending.pop(user.id, None)
+                    return
+                
+                await update.message.reply_text(f"Aanvragen van seizoen {season_num} van '{title}' bij Ombi...")
+                payload = sel.copy()
+                payload["requestedSeasons"] = [season_num]
+                resp = await bot.ombi_request(payload, media_type="tv")
+                if resp:
+                    records = load_requests()
+                    records.append({"telegram_user_id": user.id, "telegram_username": user.username, "title": f"{title} - S{season_num}", "content_type": "Series", "ombi_response": resp, "requested_at": datetime.utcnow().isoformat(), "notified": False})
+                    save_requests(records)
+                    await update.message.reply_text("✅ Seizoen aangevraagd! Ik laat je weten als het in Emby staat.")
+                else:
+                    await update.message.reply_text("❌ Seizoen aanvragen bij Ombi mislukt.")
+                pending.pop(user.id, None)
+                return
+
+    # Try to extract a title from the message
+    title = extract_title_from_message(text)
+    
+    if title:
+        # User wants to request something!
+        bot: OmbiEmbyBot = context.application.bot_data["bot_instance"]
+        
+        await update.message.reply_text(f"🔍 Zoeken naar '{title}'...")
+        results = await bot.ombi_search(title)
+        
+        if not results:
+            await update.message.reply_text("Sorry, ik kon dat niet vinden. Probeer het anders te formuleren.")
+            return
+        
+        # Show multiple results for user to choose
+        if len(results) > 1:
+            pending = context.application.bot_data.setdefault("pending", {})
+            pending[user.id] = {"query": title, "choices": results[:6]}
+            text_lines = ["Ik vond deze resultaten — reageer met het nummer:"]
+            for i, item in enumerate(results[:6], 1):
+                name = item.get("title") or item.get("name")
+                typ = item.get("mediaType", "Unknown")
+                year = (item.get("releaseDate") or item.get("firstAired") or "")[:4]
+                text_lines.append(f"{i}. {name} ({typ} {year})")
+            await update.message.reply_text("\n".join(text_lines))
+            return
+        
+        # Only one result - request directly
+        item = results[0]
+        item_title = item.get('title') or item.get('name')
+        media_type = item.get("mediaType", "").lower()
+        
+        # Check if TV show
+        if media_type in ("tv", "series"):
+            await update.message.reply_text(
+                f"Gevonden: {item_title}\n\nReageer met:\n"
+                "• 'all' voor alle seizoenen\n"
+                "• Een seizoen nummer (bijv. '1' of '2') voor een specifiek seizoen"
+            )
+            pending = context.application.bot_data.setdefault("pending", {})
+            pending[user.id] = {"selected": item}
+            return
+        
+        # Movie - request directly
+        await update.message.reply_text(f"Aanvragen van '{item_title}'...")
+        resp = await bot.ombi_request(item, media_type="movie")
+        if resp:
+            records = load_requests()
+            records.append({"telegram_user_id": user.id, "telegram_username": user.username, "title": item.get('title') or item.get('name') or title, "content_type": "Movie", "ombi_response": resp, "requested_at": datetime.utcnow().isoformat(), "notified": False})
+            save_requests(records)
+            await update.message.reply_text("✅ Aanvraag opgeslagen! Ik laat je weten als het in Emby staat.")
+        else:
+            await update.message.reply_text("❌ Aanvragen mislukt. Check de bot logs.")
+        return
+    
+    # Casual replies (Nederlands)
+    low = text.lower()
+    if any(g in low for g in ("hi", "hallo", "hey", "hoi", "dag", "goedemorgen", "goedemiddag", "goedenavond")):
+        await update.message.reply_text(f"Hey {update.effective_user.first_name}! Zeg me wat je wilt kijken en ik zoek het voor je.")
+        return
+    if "dank" in low or "bedankt" in low or "thanks" in low:
+        await update.message.reply_text("Graag gedaan! Veel kijkplezier! 🎬")
+        return
+    if "help" in low or "wat kun je" in low or "hoe werkt" in low:
+        await update.message.reply_text("Vertel me gewoon wat je wilt kijken! Bijvoorbeeld:\n• \"Ik wil Inception kijken\"\n• \"Voeg Breaking Bad toe\"\n• \"Zoek The Matrix\"")
+        return
+    
+    # Probeer AI conversatie voor natuurlijke chat
+    ai: DutchConversationalAI = context.application.bot_data.get("ai_chat")
+    if ai and ai.enabled:
+        try:
+            response = await ai.generate_response(text)
+            if response:
+                await update.message.reply_text(response)
+                return
+        except Exception as e:
+            logger.debug("AI chat mislukt: %s", e)
+    
+    # Standaard onduidelijk bericht
+    await update.message.reply_text("Niet zeker wat je bedoelt. Probeer iets zoals \"Ik wil Inception kijken\" of gebruik /help voor voorbeelden.")
+
+
+async def background_poller(application):
+    bot: OmbiEmbyBot = application.bot_data["bot_instance"]
+    while True:
+        try:
+            records = load_requests()
+            changed = False
+            for r in records:
+                if r.get("notified"):
+                    continue
+                title = r.get("title")
+                ctype = r.get("content_type") or "Movie"
+                emby_res = await bot.emby_search(title, content_type=ctype)
+                if emby_res and isinstance(emby_res, dict):
+                    items = emby_res.get("Items") or []
+                    if items:
+                        r["notified"] = True
+                        changed = True
+                        uid = r.get("telegram_user_id")
+                        try:
+                            await application.bot.send_message(chat_id=uid, text=f"Good news — '{title}' is now available in Emby!")
+                        except Exception:
+                            logger.exception("Failed to send notification to %s", uid)
+            if changed:
+                save_requests(records)
+        except Exception:
+            logger.exception("Error in poller")
+        await asyncio.sleep(bot.poll_interval)
+
+
+def load_config(path: str = "config.yaml") -> dict:
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
+            return yaml.safe_load(f) or {}
+    return {}
+
+
+def main():
+    config = load_config()
+    token = config.get("telegram_token") or os.environ.get("TELEGRAM_TOKEN")
+    if not token:
+        print("Telegram token missing. Set telegram_token in config.yaml or TELEGRAM_TOKEN env var.")
+        return
+
+    bot_instance = OmbiEmbyBot(config)
+
+    app = ApplicationBuilder().token(token).build()
+    app.bot_data["bot_instance"] = bot_instance
+    
+    # Initialiseer Nederlandse conversatie AI
+    ai_chat = DutchConversationalAI()
+    app.bot_data["ai_chat"] = ai_chat
+    if ai_chat.enabled:
+        print("🤖 Nederlandse conversatie AI ingeschakeld (GroNLP GPT-2)")
+        print("   Model wordt gedownload (~500MB) bij eerste gebruik")
+    else:
+        print("ℹ️  Conversatie AI uitgeschakeld (installeer transformers & torch om in te schakelen)")
+
+    app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("request", request_command))
+    app.add_handler(CommandHandler("status", status_command))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
+
+    async def on_startup(application):
+        await bot_instance.ensure_session()
+        application.create_task(background_poller(application))
+
+    app.post_init = on_startup
+
+    print("Starting bot — press Ctrl-C to stop")
+    app.run_polling()
+
+
+if __name__ == "__main__":
+    main()

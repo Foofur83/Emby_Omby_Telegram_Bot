@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Emby Bot{% endblock %}
+
+{% block content %}
+<div class="stats">
+    <div class="stat-box">
+        <h3>Totaal Aanvragen</h3>
+        <div class="value">{{ stats.total_requests }}</div>
+    </div>
+    <div class="stat-box">
+        <h3>In Afwachting</h3>
+        <div class="value">{{ stats.pending_requests }}</div>
+    </div>
+    <div class="stat-box">
+        <h3>Voltooid</h3>
+        <div class="value">{{ stats.completed_requests }}</div>
+    </div>
+    <div class="stat-box">
+        <h3>Totaal Gebruikers</h3>
+        <div class="value">{{ stats.total_users }}</div>
+    </div>
+    <div class="stat-box">
+        <h3>Goedgekeurde Gebruikers</h3>
+        <div class="value">{{ stats.approved_users }}</div>
+    </div>
+    <div class="stat-box">
+        <h3>In Afwachting</h3>
+        <div class="value">{{ stats.pending_users }}</div>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Recente Aanvragen</h2>
+    {% if recent_requests %}
+    <table>
+        <thead>
+            <tr>
+                <th>Titel</th>
+                <th>Type</th>
+                <th>Gebruiker</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for req in recent_requests %}
+            <tr>
+                <td>{{ req.title }}</td>
+                <td>{{ req.content_type }}</td>
+                <td>{{ req.telegram_user_id }}</td>
+                <td>
+                    {% if req.notified %}
+                        <span class="badge badge-success">Beschikbaar</span>
+                    {% else %}
+                        <span class="badge badge-warning">In afwachting</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: #94a3b8;">Nog geen aanvragen.</p>
+    {% endif %}
+</div>
+{% endblock %}

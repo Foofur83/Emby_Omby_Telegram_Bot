@@ -1,0 +1,243 @@
+{% extends 'base.html' %}
+
+{% block title %}Handleiding - Emby Bot{% endblock %}
+
+{% block content %}
+<div class="card">
+    <h2>📖 Emby Bot Web Interface - Handleiding</h2>
+    <p style="color: #94a3b8; margin-bottom: 30px;">
+        Welkom bij de uitgebreide handleiding voor de Emby Bot web interface. Hier vind je alles wat je nodig hebt om de bot effectief te beheren.
+    </p>
+</div>
+
+<div class="card">
+    <h2>🏠 Dashboard</h2>
+    <p style="color: #cbd5e1; margin-bottom: 15px;">
+        Het dashboard geeft een overzicht van alle activiteit en statistieken.
+    </p>
+    <ul style="color: #94a3b8; margin-left: 20px; line-height: 1.8;">
+        <li><strong style="color: #e2e8f0;">Totaal Aanvragen:</strong> Alle media aanvragen sinds opstart</li>
+        <li><strong style="color: #e2e8f0;">In Afwachting:</strong> Aanvragen die nog niet beschikbaar zijn</li>
+        <li><strong style="color: #e2e8f0;">Voltooid:</strong> Aanvragen waarbij gebruiker genotificeerd is</li>
+        <li><strong style="color: #e2e8f0;">Totaal Gebruikers:</strong> Alle geregistreerde Telegram gebruikers</li>
+        <li><strong style="color: #e2e8f0;">Goedgekeurde Gebruikers:</strong> Gebruikers met Emby toegang</li>
+        <li><strong style="color: #e2e8f0;">In Afwachting:</strong> Registratie aanvragen die wachten op goedkeuring</li>
+    </ul>
+    <p style="color: #94a3b8; margin-top: 15px;">
+        <strong style="color: #3b82f6;">💡 Tip:</strong> Het dashboard wordt automatisch bijgewerkt zodra je de pagina vernieuwt.
+    </p>
+</div>
+
+<div class="card">
+    <h2>⚙️ Configuratie</h2>
+    <p style="color: #cbd5e1; margin-bottom: 15px;">
+        Hier kun je alle bot instellingen aanpassen via een gebruiksvriendelijk formulier.
+    </p>
+    
+    <h3 style="color: #3b82f6; margin: 20px 0 10px 0;">Telegram Instellingen</h3>
+    <ul style="color: #94a3b8; margin-left: 20px; line-height: 1.8;">
+        <li><strong style="color: #e2e8f0;">Bot Token:</strong> Telegram Bot API token (van @BotFather)</li>
+        <li><strong style="color: #e2e8f0;">Admin Telegram ID:</strong> Jouw Telegram User ID (krijg je via @userinfobot)</li>
+    </ul>
+    
+    <h3 style="color: #3b82f6; margin: 20px 0 10px 0;">Ombi Instellingen</h3>
+    <ul style="color: #94a3b8; margin-left: 20px; line-height: 1.8;">
+        <li><strong style="color: #e2e8f0;">Ombi URL:</strong> Volledige URL naar je Ombi server (bijv. https://ombi.domain.nl)</li>
+        <li><strong style="color: #e2e8f0;">API Key:</strong> Ombi API sleutel (Settings → Ombi → API Key in Ombi)</li>
+    </ul>
+    
+    <h3 style="color: #3b82f6; margin: 20px 0 10px 0;">Emby Instellingen</h3>
+    <ul style="color: #94a3b8; margin-left: 20px; line-height: 1.8;">
+        <li><strong style="color: #e2e8f0;">Emby URL:</strong> Volledige URL naar je Emby server (bijv. https://emby.domain.nl)</li>
+        <li><strong style="color: #e2e8f0;">API Key:</strong> Emby API sleutel (Dashboard → Advanced → API Keys)</li>
+    </ul>
+    
+    <h3 style="color: #3b82f6; margin: 20px 0 10px 0;">Geavanceerde Instellingen</h3>
+    <ul style="color: #94a3b8; margin-left: 20px; line-height: 1.8;">
+        <li><strong style="color: #e2e8f0;">Poll Interval:</strong> Seconden tussen automatische checks (standaard: 60)</li>
+    </ul>
+    
+    <div style="background: #334155; padding: 15px; border-radius: 8px; margin-top: 20px; border-left: 4px solid #f59e0b;">
+        <strong style="color: #fbbf24;">⚠️ BELANGRIJK:</strong>
+        <p style="color: #cbd5e1; margin-top: 10px;">
+            Na het wijzigen van configuratie moet je de bot <strong>herstarten</strong> voordat wijzigingen actief worden!
+        </p>
+        <p style="color: #94a3b8; margin-top: 5px; font-size: 0.9rem;">
+            Stop de bot (Ctrl+C) en start opnieuw met <code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">python main.py</code>
+        </p>
+    </div>
+</div>
+
+<div class="card">
+    <h2>👥 Gebruikersbeheer</h2>
+    <p style="color: #cbd5e1; margin-bottom: 15px;">
+        Beheer alle Telegram gebruikers die toegang willen tot de bot.
+    </p>
+    
+    <h3 style="color: #3b82f6; margin: 20px 0 10px 0;">Nieuwe Gebruiker Goedkeuren</h3>
+    <ol style="color: #94a3b8; margin-left: 20px; line-height: 1.8;">
+        <li>Een gebruiker stuurt <code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">/register</code> in de Telegram bot</li>
+        <li>Jij ontvangt een notificatie als admin</li>
+        <li>Ga naar <strong style="color: #e2e8f0;">Gebruikers</strong> in de web interface</li>
+        <li>Vind de gebruiker in de lijst (status: ❌ Niet goedgekeurd)</li>
+        <li>Vul het <strong style="color: #e2e8f0;">Emby gebruikersnaam</strong> in</li>
+        <li>Klik op <strong style="color: #10b981;">✅ Goedkeuren</strong></li>
+        <li>De gebruiker ontvangt automatisch een Telegram notificatie</li>
+    </ol>
+    
+    <h3 style="color: #3b82f6; margin: 20px 0 10px 0;">Gebruiker Verwijderen</h3>
+    <p style="color: #94a3b8; margin-bottom: 10px;">
+        Klik op <strong style="color: #ef4444;">🗑️ Verwijderen</strong> naast een gebruiker om deze te verwijderen. Dit verwijdert ook alle notificatie voorkeuren.
+    </p>
+    
+    <h3 style="color: #3b82f6; margin: 20px 0 10px 0;">Gebruikersinformatie</h3>
+    <p style="color: #94a3b8; margin-bottom: 10px;">Per gebruiker zie je:</p>
+    <ul style="color: #94a3b8; margin-left: 20px; line-height: 1.8;">
+        <li><strong style="color: #e2e8f0;">Telegram ID:</strong> Unieke identifier</li>
+        <li><strong style="color: #e2e8f0;">Naam:</strong> Telegram voor- en achternaam</li>
+        <li><strong style="color: #e2e8f0;">Username:</strong> @username (indien ingesteld)</li>
+        <li><strong style="color: #e2e8f0;">Emby Account:</strong> Gekoppelde Emby gebruikersnaam</li>
+        <li><strong style="color: #e2e8f0;">Status:</strong> Goedgekeurd of in afwachting</li>
+        <li><strong style="color: #e2e8f0;">Registratie datum:</strong> Wanneer account aangevraagd is</li>
+    </ul>
+    
+    <div style="background: #1e3a5f; padding: 15px; border-radius: 8px; margin-top: 20px; border-left: 4px solid #3b82f6;">
+        <strong style="color: #60a5fa;">💡 TIP:</strong>
+        <p style="color: #cbd5e1; margin-top: 10px;">
+            Zorg dat de Emby gebruikersnaam <strong>exact overeenkomt</strong> met de gebruiker in Emby, anders kan de bot geen content afspelen!
+        </p>
+    </div>
+</div>
+
+<div class="card">
+    <h2>📋 Aanvragen Beheren</h2>
+    <p style="color: #cbd5e1; margin-bottom: 15px;">
+        Bekijk alle media aanvragen van gebruikers en beheer de lijst.
+    </p>
+    
+    <h3 style="color: #3b82f6; margin: 20px 0 10px 0;">Aanvraag Informatie</h3>
+    <p style="color: #94a3b8; margin-bottom: 10px;">Voor elke aanvraag zie je:</p>
+    <ul style="color: #94a3b8; margin-left: 20px; line-height: 1.8;">
+        <li><strong style="color: #e2e8f0;">Titel:</strong> Naam van de film of serie</li>
+        <li><strong style="color: #e2e8f0;">Type:</strong> Movie of Series</li>
+        <li><strong style="color: #e2e8f0;">Gebruiker:</strong> Telegram ID van aanvrager</li>
+        <li><strong style="color: #e2e8f0;">Status:</strong> 
+            <span style="color: #10b981;">✅ Beschikbaar</span> (gebruiker genotificeerd) of 
+            <span style="color: #f59e0b;">⏳ In afwachting</span>
+        </li>
+        <li><strong style="color: #e2e8f0;">Ombi ID & Emby ID:</strong> Interne IDs voor tracking</li>
+        <li><strong style="color: #e2e8f0;">Aanvraag datum:</strong> Wanneer aangevraagd</li>
+    </ul>
+    
+    <h3 style="color: #3b82f6; margin: 20px 0 10px 0;">Aanvragen Opschonen</h3>
+    <p style="color: #94a3b8; margin-bottom: 10px;">Er zijn drie opties om de lijst op te schonen:</p>
+    <ul style="color: #94a3b8; margin-left: 20px; line-height: 1.8;">
+        <li><strong style="color: #e2e8f0;">🗑️ Verwijderen (per aanvraag):</strong> Verwijder één specifieke aanvraag</li>
+        <li><strong style="color: #e2e8f0;">🧹 Wis Voltooide:</strong> Verwijder alle aanvragen waar gebruikers al voor genotificeerd zijn</li>
+        <li><strong style="color: #e2e8f0;">⚠️ Wis Alles:</strong> Verwijder <strong>ALLE</strong> aanvragen (vraagt bevestiging)</li>
+    </ul>
+    
+    <div style="background: #3d1e1e; padding: 15px; border-radius: 8px; margin-top: 20px; border-left: 4px solid #ef4444;">
+        <strong style="color: #f87171;">⚠️ LET OP:</strong>
+        <p style="color: #cbd5e1; margin-top: 10px;">
+            Het verwijderen van aanvragen is <strong>permanent</strong>! Er is geen undo functie. Maak een backup van <code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">data/requests.json</code> voor de zekerheid.
+        </p>
+    </div>
+</div>
+
+<div class="card">
+    <h2>🔒 Beveiliging & Best Practices</h2>
+    
+    <h3 style="color: #3b82f6; margin: 20px 0 10px 0;">1. Wachtwoord Wijzigen</h3>
+    <p style="color: #94a3b8; margin-bottom: 10px;">
+        <strong style="color: #ef4444;">⚠️ BELANGRIJK:</strong> Wijzig het standaard wachtwoord direct!
+    </p>
+    <ol style="color: #94a3b8; margin-left: 20px; line-height: 1.8;">
+        <li>Open <code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">web_ui.py</code> in een text editor</li>
+        <li>Zoek naar: <code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">ADMIN_PASSWORD = "admin123"</code></li>
+        <li>Wijzig naar een sterk wachtwoord</li>
+        <li>Herstart de web interface</li>
+    </ol>
+    
+    <h3 style="color: #3b82f6; margin: 20px 0 10px 0;">2. Toegang Beperken</h3>
+    <p style="color: #94a3b8; margin-bottom: 10px;">Aanbevolen beveiligingsmaatregelen:</p>
+    <ul style="color: #94a3b8; margin-left: 20px; line-height: 1.8;">
+        <li>Gebruik een <strong style="color: #e2e8f0;">reverse proxy</strong> (nginx/Caddy) met HTTPS</li>
+        <li>Beperk toegang tot je <strong style="color: #e2e8f0;">lokale netwerk</strong></li>
+        <li>Gebruik <strong style="color: #e2e8f0;">firewall regels</strong> om externe toegang te blokkeren</li>
+        <li>Overweeg <strong style="color: #e2e8f0;">VPN</strong> voor externe toegang</li>
+    </ul>
+    
+    <h3 style="color: #3b82f6; margin: 20px 0 10px 0;">3. Backup</h3>
+    <p style="color: #94a3b8; margin-bottom: 10px;">
+        Maak regelmatig backups van belangrijke bestanden:
+    </p>
+    <ul style="color: #94a3b8; margin-left: 20px; line-height: 1.8;">
+        <li><code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">config.yaml</code> - Alle configuratie</li>
+        <li><code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">data/users.json</code> - Gebruikers en voorkeuren</li>
+        <li><code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">data/requests.json</code> - Aanvragen historie</li>
+        <li><code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">data/episode_notifications.json</code> - Aflevering tracking</li>
+    </ul>
+</div>
+
+<div class="card">
+    <h2>🐛 Problemen Oplossen</h2>
+    
+    <h3 style="color: #3b82f6; margin: 20px 0 10px 0;">Web Interface Laadt Niet</h3>
+    <ul style="color: #94a3b8; margin-left: 20px; line-height: 1.8;">
+        <li>Check of <code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">web_ui.py</code> draait</li>
+        <li>Probeer: <code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">http://localhost:5000</code></li>
+        <li>Check firewall instellingen</li>
+        <li>Bekijk console voor error messages</li>
+    </ul>
+    
+    <h3 style="color: #3b82f6; margin: 20px 0 10px 0;">Kan Niet Inloggen</h3>
+    <ul style="color: #94a3b8; margin-left: 20px; line-height: 1.8;">
+        <li>Standaard wachtwoord: <code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">admin123</code></li>
+        <li>Check <code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">ADMIN_PASSWORD</code> in <code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">web_ui.py</code></li>
+        <li>Clear browser cookies en probeer opnieuw</li>
+    </ul>
+    
+    <h3 style="color: #3b82f6; margin: 20px 0 10px 0;">Configuratie Niet Opgeslagen</h3>
+    <ul style="color: #94a3b8; margin-left: 20px; line-height: 1.8;">
+        <li>Check bestandspermissies op <code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">config.yaml</code></li>
+        <li>Zorg dat het bestand niet read-only is</li>
+        <li>Herstart de bot na wijzigingen!</li>
+    </ul>
+    
+    <h3 style="color: #3b82f6; margin: 20px 0 10px 0;">Statistieken Kloppen Niet</h3>
+    <ul style="color: #94a3b8; margin-left: 20px; line-height: 1.8;">
+        <li>Ververs de pagina (F5)</li>
+        <li>Check of JSON bestanden niet corrupt zijn</li>
+        <li>Herstart de web interface</li>
+    </ul>
+</div>
+
+<div class="card">
+    <h2>🚀 Tips & Tricks</h2>
+    <ul style="color: #94a3b8; margin-left: 20px; line-height: 1.8;">
+        <li><strong style="color: #e2e8f0;">Dashboard in de gaten houden:</strong> Check regelmatig de "In Afwachting" statistiek om te zien of er nieuwe gebruikers of aanvragen zijn</li>
+        <li><strong style="color: #e2e8f0;">Emby namen consistent:</strong> Zorg dat Telegram gebruikers hun Emby account naam weten voor snellere goedkeuring</li>
+        <li><strong style="color: #e2e8f0;">Regelmatig opschonen:</strong> Gebruik "Wis Voltooide" om de aanvragenlijst overzichtelijk te houden</li>
+        <li><strong style="color: #e2e8f0;">Mobile access:</strong> De interface werkt uitstekend op smartphones en tablets</li>
+        <li><strong style="color: #e2e8f0;">Bookmarks:</strong> Voeg de interface toe aan je browser favorieten voor snelle toegang</li>
+    </ul>
+</div>
+
+<div class="card">
+    <h2>📚 Aanvullende Documentatie</h2>
+    <p style="color: #94a3b8; margin-bottom: 15px;">
+        Voor meer informatie, zie ook:
+    </p>
+    <ul style="color: #94a3b8; margin-left: 20px; line-height: 1.8;">
+        <li><strong style="color: #e2e8f0;">README.md:</strong> Volledige installatie handleiding</li>
+        <li><strong style="color: #e2e8f0;">WEB_INTERFACE.md:</strong> Technische details over de web interface</li>
+        <li><strong style="color: #e2e8f0;">Telegram Bot:</strong> Type <code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">/help</code> in de bot voor gebruikersinstructies</li>
+    </ul>
+</div>
+
+<div style="text-align: center; padding: 30px 0; color: #64748b;">
+    <p>Gemaakt met ❤️ voor de Nederlandse Emby community</p>
+</div>
+
+{% endblock %}
