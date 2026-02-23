@@ -1,6 +1,31 @@
 # 🤖 Emby Bot - Nederlandse Telegram Bot voor Ombi + Emby
 
+[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub issues](https://img.shields.io/github/issues/Foofur83/Emby_Omby_Telegram_Bot)](https://github.com/Foofur83/Emby_Omby_Telegram_Bot/issues)
+[![GitHub stars](https://img.shields.io/github/stars/Foofur83/Emby_Omby_Telegram_Bot)](https://github.com/Foofur83/Emby_Omby_Telegram_Bot/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/Foofur83/Emby_Omby_Telegram_Bot)](https://github.com/Foofur83/Emby_Omby_Telegram_Bot/network)
+
 Een krachtige Telegram bot voor het aanvragen van films en series via Ombi, met automatische notificaties en direct afspelen via Emby.
+
+> 🇳🇱 **Volledig in het Nederlands** | 🎬 **Smart Detection** | 📺 **Episode Tracking** | 🌐 **Web Interface**
+
+---
+
+## 📑 Inhoudsopgave
+
+- [Features](#-features)
+- [Screenshots](#-screenshots)
+- [Installatie](#-installatie)
+- [Gebruik](#-gebruik--voor-eindgebruikers)
+- [Admin Functies](#-admin-functies)
+- [Configuratie](#-configuratie-opties)
+- [Web Interface](WEB_INTERFACE.md)
+- [Problemen Oplossen](#-problemen-oplossen)
+- [Bijdragen](CONTRIBUTING.md)
+- [Licentie](#-licentie)
+
+---
 
 ## ✨ Features
 
@@ -40,7 +65,23 @@ Een krachtige Telegram bot voor het aanvragen van films en series via Ombi, met 
 - **Error handling** - Duidelijke foutmeldingen
 - **Logging** - Uitgebreide logs voor debugging
 
-## 📋 Installatie
+## � Screenshots
+
+> 📝 Voor screenshots en demo's, zie [SCREENSHOTS.md](SCREENSHOTS.md)
+
+**Telegram Bot Features:**
+- 🎬 Smart content zoeken met automatische detectie
+- 📺 Seizoen/aflevering selectie menu's
+- ▶️ Direct playback met apparaat keuze
+- 🔔 Automatische notificaties
+
+**Web Interface Features:**
+- 📊 Dashboard met statistieken
+- 👥 Gebruikersbeheer met approval systeem
+- ⚙️ Live configuratie editor
+- 📖 Ingebouwde handleiding
+
+## �📋 Installatie
 
 ### Stap 1: Vereisten
 
@@ -49,8 +90,8 @@ Een krachtige Telegram bot voor het aanvragen van films en series via Ombi, met 
 ### Stap 2: Clone Repository
 
 ```bash
-git clone https://github.com/jouw-repo/emby-bot.git
-cd emby-bot
+git clone https://github.com/Foofur83/Emby_Omby_Telegram_Bot.git
+cd Emby_Omby_Telegram_Bot
 ```
 
 ### Stap 3: Virtual Environment (Aanbevolen)
@@ -434,11 +475,11 @@ cat data/users.json | jq '[.[] | select(.approved == true)] | length'
 
 ## 🤝 Bijdragen
 
-Verbeteringen zijn welkom! Open een issue of pull request.
+Verbeteringen zijn welkom! Zie [CONTRIBUTING.md](CONTRIBUTING.md) voor richtlijnen.
 
 ## 📄 Licentie
 
-MIT License - zie LICENSE bestand
+MIT License - zie [LICENSE](LICENSE) bestand
 
 ## 🙏 Credits
 
@@ -450,8 +491,24 @@ MIT License - zie LICENSE bestand
 
 ## 📞 Support
 
-Problemen? Open een [GitHub Issue](https://github.com/jouw-repo/emby-bot/issues)
+Problemen? Vragen? Suggesties?
+
+- 🐛 [Open een Issue](https://github.com/Foofur83/Emby_Omby_Telegram_Bot/issues)
+- 💬 [Discussies](https://github.com/Foofur83/Emby_Omby_Telegram_Bot/discussions)
+- ⭐ [Star dit project](https://github.com/Foofur83/Emby_Omby_Telegram_Bot) als je het nuttig vindt!
+
+## 🌟 Hoogtepunten
+
+- ✅ **Volledig Nederlands** - Alle berichten en documentatie in het Nederlands
+- ✅ **Smart Detection** - Automatische type detectie (film/serie)
+- ✅ **Episode Tracking** - Intelligent volgen van series die je kijkt
+- ✅ **One-Click Playback** - Direct afspelen zonder configuratie
+- ✅ **Web Management** - Moderne web interface voor admins
+- ✅ **Production Ready** - Docker support en systemd examples
 
 ---
 
 **Gemaakt met ❤️ voor de Nederlandse Emby community**
+
+[![GitHub Repo](https://img.shields.io/badge/GitHub-Emby__Omby__Telegram__Bot-blue?logo=github)](https://github.com/Foofur83/Emby_Omby_Telegram_Bot)
+
