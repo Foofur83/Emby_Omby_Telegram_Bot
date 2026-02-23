@@ -1,0 +1,8 @@
+admin_telegram_id: 
+emby_api_key: 
+emby_url: 
+ombi_api_key: 
+ombi_api_key_header: ApiKey
+ombi_url: 
+poll_interval_seconds: 60
+telegram_token: 
