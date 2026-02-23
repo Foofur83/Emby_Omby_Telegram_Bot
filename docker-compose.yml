@@ -2,28 +2,28 @@ version: '3.8'
 
 services:
   emby-bot:
-    build: .
+    image: foofur/emby-telegram-bot:latest
     container_name: telegram-emby-bot
     restart: unless-stopped
     volumes:
-      - ./data:/app/data
-      - ./config.yaml:/app/config.yaml:ro
+      - /mnt/Persistentstorage/Emby-Ombi_Bot:/config
+      - /mnt/Persistentstorage/Emby-Ombi_Bot/data:/app/data
     environment:
       - TZ=Europe/Amsterdam
     networks:
       - default
 
   web-ui:
-    build: .
+    image: foofur/emby-telegram-bot:latest
     container_name: emby-bot-webui
     restart: unless-stopped
     command: python web_ui.py
     ports:
-      - "5000:5000"
+      - "4000:4000"
     volumes:
-      - ./data:/app/data
-      - ./config.yaml:/app/config.yaml
-      - ./templates:/app/templates
+      - /mnt/Persistentstorage/Emby-Ombi_Bot:/config
+      - /mnt/Persistentstorage/Emby-Ombi_Bot/data:/app/data
+      - /mnt/Persistentstorage/Emby-Ombi_Bot/templates:/app/templates
     environment:
       - TZ=Europe/Amsterdam
     networks:
