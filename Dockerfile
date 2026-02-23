@@ -12,9 +12,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
 	&& python -m pip cache purge || true
 
-# Kopieer applicatie code
-COPY bot.py web_ui.py ./
-COPY templates ./templates
+# Kopieer applicatie code (alles zodat config.example.yaml en modules in de image zitten)
+COPY . .
 
 # Maak data directory en supervisor log dir
 RUN mkdir -p /app/data /var/log/supervisor
@@ -22,7 +21,7 @@ RUN mkdir -p /app/data /var/log/supervisor
 # Volume voor persistent data
 VOLUME /app/data
 
-# Supervisord config
+# Supervisord config (plaats naar /etc)
 COPY supervisor/emby.conf /etc/supervisor/conf.d/emby.conf
 RUN printf "[supervisord]\n[nodaemon]\n[include]\nfiles = /etc/supervisor/conf.d/*.conf\n" > /etc/supervisor/supervisord.conf
 
