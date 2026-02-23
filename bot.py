@@ -618,79 +618,53 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_data = get_user_by_telegram_id(user.id)
     
-    # Eerste keer - niet geregistreerd of niet goedgekeurd
+    # Eerste keer - niet geregistreerd of niet goedgekeurd (anti-spam versie)
     if not user_data or not user_data.get("approved"):
-        # Uitgebreide welkomstboodschap voor nieuwe gebruikers
-        await update.message.reply_text(
-            "🤖 **Welkom bij de Emby Bot!**\n\n"
-            "Fijn dat je er bent! Deze bot maakt het super makkelijk om films en series aan te vragen en af te spelen via Emby.\n\n"
-            "📚 **Wat kun je met deze bot?**\n"
-            "• 🎬 Films en series aanvragen\n"
-            "• ▶️ Direct afspelen op je apparaten\n"
-            "• 📺 Seizoenen en afleveringen kiezen\n"
-            "• 🔔 Automatische notificaties ontvangen\n"
-            "• 🆕 Update alerts voor nieuwe afleveringen\n\n"
-            "💡 **Hoe werkt het?**\n"
-            "Heel simpel - type gewoon de titel:\n"
-            "• \"Dune\"\n"
-            "• \"Breaking Bad\"\n"
-            "• \"The Matrix\"\n\n"
-            "De bot zoekt automatisch en toont resultaten met knoppen. Als content al beschikbaar is, kun je meteen afspelen!\n\n"
-            "🎯 **Series Afspelen:**\n"
-            "Voor series kun je exact kiezen:\n"
-            "1️⃣ Kies seizoen uit het menu\n"
-            "2️⃣ Kies aflevering\n"
-            "3️⃣ Selecteer je apparaat\n"
-            "4️⃣ Kijken maar! 🍿\n\n"
-            "📱 **Handige Commands:**\n"
-            "/help - Volledig overzicht\n"
-            "/status - Je aanvragen bekijken\n"
-            "/notifications - Aflevering alerts aan/uit\n\n"
-            "⚠️ **Belangrijk:**\n"
-            "Om content te kunnen afspelen moet je eerst toegang krijgen. De admin koppelt je Telegram account aan je Emby gebruiker.\n\n",
-            parse_mode="Markdown"
-        )
-        
-        # Direct toegang aanvragen tonen
-        await asyncio.sleep(1)  # Korte pauze voor leesbaarheid
-        
         if not user_data:
-            # Helemaal nieuwe gebruiker - toon registratie instructies
+            # Nieuwe gebruiker - kort en privé systeem benadrukken
             await update.message.reply_text(
-                "🔐 **Toegang Aanvragen**\n\n"
-                "Je bent nog niet geregistreerd. Klik op de knop hieronder om toegang aan te vragen!\n\n"
-                "✅ Na goedkeuring krijg je een bericht en kun je direct beginnen met het aanvragen en afspelen van content.",
-                parse_mode="Markdown",
-                reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("🔓 Toegang Aanvragen", callback_data="request_access")
-                ]])
+                f"👋 Hallo {user.first_name}!\n\n"
+                "🔐 **Privé Media Bot**\n\n"
+                "Deze bot is onderdeel van een gesloten media server voor uitgenodigde gebruikers.\n\n"
+                "Heb je al een account bij deze Emby server?\n\n"
+                "━━━━━━━━━━━━━━━━━━━━━\n\n"
+                "📝 **Account Koppelen**\n\n"
+                "Type dit commando:\n"
+                "`/register`\n\n"
+                "_(Kopieer en stuur het commando inclusief de /)_\n\n"
+                "De beheerder koppelt je dan aan je Emby account.\n\n"
+                "━━━━━━━━━━━━━━━━━━━━━\n\n"
+                "❌ **Geen Emby Account?**\n"
+                "Neem eerst contact op met de beheerder.",
+                parse_mode="Markdown"
             )
         else:
-            # Al geregistreerd maar nog niet goedgekeurd
+            # Al geregistreerd, nog niet goedgekeurd
+            reg_date = user_data.get('registered_at', 'onbekend')[:10]
             await update.message.reply_text(
-                "⏳ **In Afwachting van Goedkeuring**\n\n"
-                f"Je registratie is verstuurd op {user_data.get('registered_at', 'onbekend')[:10]}.\n\n"
-                "De admin ontvangt een notificatie en koppelt je account aan Emby. "
-                "Je krijgt automatisch een bericht zodra je bent goedgekeurd!\n\n"
-                "💡 In de tussentijd kun je wel al zoeken naar content met /help voor instructies.",
+                f"👋 Hallo {user.first_name}!\n\n"
+                "⏳ **Wachten op Goedkeuring**\n\n"
+                f"Je registratie is verstuurd op **{reg_date}**.\n\n"
+                "De beheerder koppelt je account binnenkort. "
+                "Je krijgt automatisch een bericht als je goedgekeurd bent.\n\n"
+                "💡 Dit is een privé systeem voor bestaande Emby gebruikers.",
                 parse_mode="Markdown"
             )
     else:
-        # Goedgekeurde gebruiker - beknopte uitleg
+        # Goedgekeurde gebruiker - kort en vriendelijk
         await update.message.reply_text(
-            f"👋 Welkom terug, {user.first_name}!\n\n"
-            f"✅ Je bent gekoppeld als: **{user_data.get('emby_username')}**\n\n"
-            "📝 **Snel Starten:**\n"
-            "Type gewoon een titel om te zoeken:\n"
-            "• \"Inception\" - zoek en speel direct af\n"
-            "• \"Breaking Bad\" - kies seizoen/aflevering\n\n"
-            "🎯 **Shortcuts:**\n"
-            "/status - Bekijk je aanvragen\n"
-            "/help - Alle functies & voorbeelden\n"
-            "/notifications - Toggle aflevering alerts\n\n"
-            "💡 **Tip:** Als content al beschikbaar is, zie je meteen een ▶️ afspeelknop. "
-            "Voor series kies je het seizoen en de aflevering via menu's!\n\n"
-            "🆕 Je krijgt automatisch updates bij nieuwe afleveringen van series die je kijkt.",
+            f"👋 Hey {user.first_name}!\n\n"
+            f"✨ Ingelogd als: **{user_data.get('emby_username')}**\n\n"
+            "🚀 **Snel starten:**\n"
+            "Stuur me een titel:\n"
+            "• Dune\n"
+            "• Breaking Bad\n"
+            "• The Matrix\n\n"
+            "🎬 Films: Direct ▶️ afspelen\n"
+            "📺 Series: Kies seizoen + aflevering\n\n"
+            "─────────────\n\n"
+            "⚙️ Commands: /help | /status | /recent\n\n"
+            "_Veel kijkplezier!_ 🍿",
             parse_mode="Markdown"
         )
 
@@ -701,19 +675,48 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = get_user_by_telegram_id(user.id)
     is_approved = user_data and user_data.get("approved")
     
+    # Niet-geregistreerde of niet-goedgekeurde gebruikers krijgen minimale help
+    if not is_approved:
+        if not user_data:
+            # Helemaal niet geregistreerd
+            await update.message.reply_text(
+                "ℹ️ **Help - Privé Media Bot**\n\n"
+                "Deze bot is onderdeel van een gesloten media server voor uitgenodigde gebruikers.\n\n"
+                "━━━━━━━━━━━━━━━━━━━━━\n\n"
+                "🔐 **Toegang Nodig?**\n\n"
+                "Als je al een Emby account hebt bij deze server, koppel je Telegram:\n\n"
+                "`/register`\n\n"
+                "Na goedkeuring krijg je toegang tot alle functies!\n"
+                "━━━━━━━━━━━━━━━━━━━━━\n\n"
+                "❌ **Geen Emby Account?**\n\n"
+                "Deze bot is niet voor openbaar gebruik. "
+                "Neem contact op met de beheerder voor toegang tot de Emby server.",
+                parse_mode="Markdown"
+            )
+        else:
+            # Wel geregistreerd maar nog niet goedgekeurd
+            await update.message.reply_text(
+                "ℹ️ **Help - Wachten op Goedkeuring**\n\n"
+                f"Je registratie is verstuurd op {user_data.get('registered_at', 'onbekend')[:10]}.\n\n"
+                "De beheerder koppelt je account binnenkort aan Emby. "
+                "Je krijgt een bericht zodra je goedgekeurd bent.\n\n"
+                "━━━━━━━━━━━━━━━━━━━━━\n\n"
+                "🎯 **Na goedkeuring gebruikmaken van alle functies!**\n\n"
+                "━━━━━━━━━━━━━━━━━━━━━\n\n"
+                "⏳ Even geduld... je hoort snel van ons!",
+                parse_mode="Markdown"
+            )
+        return
+    
+    # Volledige help voor goedgekeurde gebruikers
     help_text = (
         "📖 **Emby Bot - Volledige Handleiding**\n\n"
         "━━━━━━━━━━━━━━━━━━━━━\n\n"
     )
     
-    if is_approved:
-        help_text += (
-            f"✅ Je bent ingelogd als: **{user_data.get('emby_username')}**\n\n"
-        )
-    else:
-        help_text += (
-            "⚠️ Je bent nog niet goedgekeurd. Gebruik /register om toegang aan te vragen!\n\n"
-        )
+    help_text += (
+        f"✅ Je bent ingelogd als: **{user_data.get('emby_username')}**\n\n"
+    )
     
     help_text += (
         "🎬 **Content Aanvragen**\n"
@@ -772,9 +775,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "⚙️ **Alle Commands**\n"
         "━━━━━━━━━━━━━━━━━━━━━\n"
     )
-    
-    if not is_approved:
-        help_text += "/register - Vraag toegang aan\n"
     
     help_text += (
         "/start - Welkomstboodschap\n"
@@ -1086,31 +1086,63 @@ async def approve_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(
             chat_id=telegram_id,
             text=f"🎉 **Je account is goedgekeurd!**\n\n"
-                 f"Je bent gekoppeld aan Emby gebruiker: **{emby_username}**\n\n"
-                 f"Je kunt nu films en series aanvragen!",
+                 f"Je bent gekoppeld aan Emby gebruiker: **{emby_username}**\n\n",
             parse_mode="Markdown"
         )
         
         # Wacht even voor leesbaarheid
         await asyncio.sleep(1)
         
-        # Tweede bericht: beknopte handleiding
+        # Tweede bericht: Welkom met features en hoe het werkt
         await context.bot.send_message(
             chat_id=telegram_id,
-            text=f"👋 **Welkom {target_user.get('telegram_first_name')}!**\n\n"
-                 f"✅ Je bent gekoppeld als: **{emby_username}**\n\n"
-                 "📝 **Snel Starten:**\n"
-                 "Type gewoon een titel om te zoeken:\n"
-                 "• \"Inception\" - zoek en speel direct af\n"
-                 "• \"Breaking Bad\" - kies seizoen/aflevering\n\n"
-                 "🎯 **Shortcuts:**\n"
-                 "/status - Bekijk je aanvragen\n"
-                 "/help - Alle functies & voorbeelden\n"
-                 "/notifications - Toggle aflevering alerts\n\n"
-                 "💡 **Tip:** Als content al beschikbaar is, zie je meteen een ▶️ afspeelknop. "
-                 "Voor series kies je het seizoen en de aflevering via menu's!\n\n"
-                 "🆕 Je krijgt automatisch updates bij nieuwe afleveringen van series die je kijkt.\n\n"
-                 "🎬 **Probeer nu:** Stuur me een titel!",
+            text=f"🤖 Welkom {target_user.get('telegram_first_name')} bij de Emby Bot!\n\n"
+                 "Fijn dat je er bent! Deze bot maakt het super makkelijk om films en series aan te vragen en af te spelen via Emby.\n\n"
+                 "📚 **Wat kun je met deze bot?**\n"
+                 "• 🎬 Films en series aanvragen\n"
+                 "• ▶️ Direct afspelen op je apparaten\n"
+                 "• 📺 Seizoenen en afleveringen kiezen\n"
+                 "• 🔔 Automatische notificaties ontvangen\n"
+                 "• 🆕 Update alerts voor nieuwe afleveringen\n\n"
+                 "💡 **Hoe werkt het?**\n"
+                 "Heel simpel - type gewoon de titel:\n"
+                 "• \"Dune\"\n"
+                 "• \"Breaking Bad\"\n"
+                 "• \"The Matrix\"\n\n"
+                 "De bot zoekt automatisch en toont resultaten met knoppen. Als content al beschikbaar is, kun je meteen afspelen!\n\n"
+                 "🎯 **Series Afspelen:**\n"
+                 "Voor series kun je exact kiezen:\n"
+                 "1️⃣ Kies seizoen uit het menu\n"
+                 "2️⃣ Kies aflevering\n"
+                 "3️⃣ Selecteer je apparaat\n"
+                 "4️⃣ Kijken maar! 🍿\n\n"
+                 "📱 **Handige Commands:**\n"
+                 "/help - Volledig overzicht\n"
+                 "/status - Je aanvragen bekijken\n"
+                 "/notifications - Aflevering alerts aan/uit",
+            parse_mode="Markdown"
+        )
+        
+        # Wacht 2 seconden
+        await asyncio.sleep(2)
+        
+        # Derde bericht: Notificaties en commands
+        await context.bot.send_message(
+            chat_id=telegram_id,
+            text="🔔 **Automatische Updates**\n\n"
+                 "Je krijgt een bericht wanneer:\n"
+                 "✅ Content beschikbaar is in Emby\n"
+                 "🆕 Er nieuwe afleveringen zijn van series die je kijkt\n\n"
+                 "_Notificaties uitzetten? Gebruik /notifications_\n\n"
+                 "─────────────\n\n"
+                 "⚙️ **Handige Commands:**\n\n"
+                 "/help → Uitgebreide handleiding\n"
+                 "/status → Bekijk je aanvragen\n"
+                 "/recent → Laatst toegevoegd\n"
+                 "/myshows → Jouw series\n\n"
+                 "─────────────\n\n"
+                 "🎬 **Start nu:** Stuur me een titel!\n\n"
+                 "_Veel kijkplezier!_ 🍿",
             parse_mode="Markdown"
         )
         
@@ -1986,68 +2018,48 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     pending = context.application.bot_data.setdefault("pending", {})
     state = pending.get(user.id)
     
-    # Check if user is approved FIRST - voor ALL berichten (niet alleen nieuwe requests)
-    if not state:  # Alleen voor nieuwe berichten, niet tijdens een actieve flow
-        user_data = get_user_by_telegram_id(user.id)
+    # Check if user is approved FIRST - voor ALLE berichten (altijd)
+    user_data = get_user_by_telegram_id(user.id)
+    
+    # Niet geregistreerd of niet goedgekeurd - toon ALTIJD welkomstbericht
+    if not user_data or not user_data.get("approved"):
+        # Clear any pending state (gebruiker mag niet in flows zitten)
+        if user.id in pending:
+            pending.pop(user.id, None)
         
-        # Niet geregistreerd of niet goedgekeurd - toon volledige onboarding
-        if not user_data or not user_data.get("approved"):
-            # Uitgebreide welkomstboodschap voor nieuwe gebruikers
+        if not user_data:
+            # Nieuwe gebruiker - kort bericht over privé systeem
             await update.message.reply_text(
-                "🤖 **Welkom bij de Emby Bot!**\n\n"
-                "Fijn dat je er bent! Deze bot maakt het super makkelijk om films en series aan te vragen en af te spelen via Emby.\n\n"
-                "📚 **Wat kun je met deze bot?**\n"
-                "• 🎬 Films en series aanvragen\n"
-                "• ▶️ Direct afspelen op je apparaten\n"
-                "• 📺 Seizoenen en afleveringen kiezen\n"
-                "• 🔔 Automatische notificaties ontvangen\n"
-                "• 🆕 Update alerts voor nieuwe afleveringen\n\n"
-                "💡 **Hoe werkt het?**\n"
-                "Heel simpel - type gewoon de titel:\n"
-                "• \"Dune\"\n"
-                "• \"Breaking Bad\"\n"
-                "• \"The Matrix\"\n\n"
-                "De bot zoekt automatisch en toont resultaten met knoppen. Als content al beschikbaar is, kun je meteen afspelen!\n\n"
-                "🎯 **Series Afspelen:**\n"
-                "Voor series kun je exact kiezen:\n"
-                "1️⃣ Kies seizoen uit het menu\n"
-                "2️⃣ Kies aflevering\n"
-                "3️⃣ Selecteer je apparaat\n"
-                "4️⃣ Kijken maar! 🍿\n\n"
-                "📱 **Handige Commands:**\n"
-                "/help - Volledig overzicht\n"
-                "/status - Je aanvragen bekijken\n"
-                "/notifications - Aflevering alerts aan/uit\n\n"
-                "⚠️ **Belangrijk:**\n"
-                "Om content te kunnen afspelen moet je eerst toegang krijgen. De admin koppelt je Telegram account aan je Emby gebruiker.\n\n",
+                "🔐 **Privé Media Bot**\n\n"
+                "Deze bot is onderdeel van een gesloten media server voor uitgenodigde gebruikers.\n\n"
+                "Heb je al een account bij deze Emby server? Dan kun je je Telegram koppelen.\n\n"
+                "━━━━━━━━━━━━━━━━━━━━━\n\n"
+                "📝 **Account Koppelen**\n\n"
+                "Type dit commando in de chat:\n"
+                "`/register`\n\n"
+                "_(Kopieer en plak bovenstaande tekst inclusief de / en druk op versturen)_\n\n"
+                "**Wat gebeurt er dan?**\n"
+                "1️⃣ Je aanvraag wordt naar de beheerder gestuurd\n"
+                "2️⃣ De beheerder koppelt je aan je Emby account\n"
+                "3️⃣ Je krijgt een bevestiging als je goedgekeurd bent\n"
+                "4️⃣ Dan kun je de bot gebruiken!\n\n"
+                "⏱️ Dit kan enkele minuten tot uren duren.\n\n"
+                "━━━━━━━━━━━━━━━━━━━━━\n\n"
+                "❌ **Geen Emby Account?**\n"
+                "Deze bot is niet voor openbaar gebruik. Neem contact op met de beheerder als je toegang wilt tot de Emby server.",
                 parse_mode="Markdown"
             )
-            
-            # Wacht even voor leesbaarheid
-            await asyncio.sleep(1)
-            
-            if not user_data:
-                # Helemaal nieuwe gebruiker - toon registratie knop
-                await update.message.reply_text(
-                    "🔐 **Toegang Aanvragen**\n\n"
-                    "Je bent nog niet geregistreerd. Klik op de knop hieronder om toegang aan te vragen!\n\n"
-                    "✅ Na goedkeuring krijg je een bericht en kun je direct beginnen met het aanvragen en afspelen van content.",
-                    parse_mode="Markdown",
-                    reply_markup=InlineKeyboardMarkup([[
-                        InlineKeyboardButton("🔓 Toegang Aanvragen", callback_data="request_access")
-                    ]])
-                )
-            else:
-                # Al geregistreerd maar nog niet goedgekeurd
-                await update.message.reply_text(
-                    "⏳ **In Afwachting van Goedkeuring**\n\n"
-                    f"Je registratie is verstuurd op {user_data.get('registered_at', 'onbekend')[:10]}.\n\n"
-                    "De admin ontvangt een notificatie en koppelt je account aan Emby. "
-                    "Je krijgt automatisch een bericht zodra je bent goedgekeurd!\n\n"
-                    "💡 In de tussentijd kun je wel al zoeken naar content met /help voor instructies.",
-                    parse_mode="Markdown"
-                )
-            return
+        else:
+            # Al geregistreerd maar nog niet goedgekeurd
+            await update.message.reply_text(
+                "⏳ **Wachten op Goedkeuring**\n\n"
+                f"Je registratie is verstuurd op **{user_data.get('registered_at', 'onbekend')[:10]}**.\n\n"
+                "De beheerder ontvangt een notificatie en koppelt je account. "
+                "Je krijgt automatisch een bericht zodra je bent goedgekeurd.\n\n"
+                "💡 **Let op:** Dit is een privé systeem voor bestaande Emby gebruikers.",
+                parse_mode="Markdown"
+            )
+        return
     
     # STATE 1: Waiting for film/serie choice
     if state and state.get("awaiting_type"):
@@ -2327,23 +2339,56 @@ async def background_poller(application):
                         # Wacht even voor leesbaarheid
                         await asyncio.sleep(1)
                         
-                        # Tweede bericht: beknopte handleiding
+                        # Tweede bericht: Welkom met features en hoe het werkt
                         await application.bot.send_message(
                             chat_id=telegram_id,
-                            text=f"👋 **Welkom {user.get('telegram_first_name')}!**\n\n"
-                                 f"✅ Je bent gekoppeld als: **{emby_username}**\n\n"
-                                 "📝 **Snel Starten:**\n"
-                                 "Type gewoon een titel om te zoeken:\n"
-                                 "• \"Inception\" - zoek en speel direct af\n"
-                                 "• \"Breaking Bad\" - kies seizoen/aflevering\n\n"
-                                 "🎯 **Shortcuts:**\n"
-                                 "/status - Bekijk je aanvragen\n"
-                                 "/help - Alle functies & voorbeelden\n"
-                                 "/notifications - Toggle aflevering alerts\n\n"
-                                 "💡 **Tip:** Als content al beschikbaar is, zie je meteen een ▶️ afspeelknop. "
-                                 "Voor series kies je het seizoen en de aflevering via menu's!\n\n"
-                                 "🆕 Je krijgt automatisch updates bij nieuwe afleveringen van series die je kijkt.\n\n"
-                                 "🎬 **Probeer nu:** Stuur me een titel!",
+                            text=f"🤖 Welkom {user.get('telegram_first_name')} bij de Emby Bot!\n\n"
+                                 "Fijn dat je er bent! Deze bot maakt het super makkelijk om films en series aan te vragen en af te spelen via Emby.\n\n"
+                                 "📚 **Wat kun je met deze bot?**\n"
+                                 "• 🎬 Films en series aanvragen\n"
+                                 "• ▶️ Direct afspelen op je apparaten\n"
+                                 "• 📺 Seizoenen en afleveringen kiezen\n"
+                                 "• 🔔 Automatische notificaties ontvangen\n"
+                                 "• 🆕 Update alerts voor nieuwe afleveringen\n\n"
+                                 "💡 **Hoe werkt het?**\n"
+                                 "Heel simpel - type gewoon de titel:\n"
+                                 "• \"Dune\"\n"
+                                 "• \"Breaking Bad\"\n"
+                                 "• \"The Matrix\"\n\n"
+                                 "De bot zoekt automatisch en toont resultaten met knoppen. Als content al beschikbaar is, kun je meteen afspelen!\n\n"
+                                 "🎯 **Series Afspelen:**\n"
+                                 "Voor series kun je exact kiezen:\n"
+                                 "1️⃣ Kies seizoen uit het menu\n"
+                                 "2️⃣ Kies aflevering\n"
+                                 "3️⃣ Selecteer je apparaat\n"
+                                 "4️⃣ Kijken maar! 🍿\n\n"
+                                 "📱 **Handige Commands:**\n"
+                                 "/help - Volledig overzicht\n"
+                                 "/status - Je aanvragen bekijken\n"
+                                 "/notifications - Aflevering alerts aan/uit",
+                            parse_mode="Markdown"
+                        )
+                        
+                        # Wacht 2 seconden
+                        await asyncio.sleep(2)
+                        
+                        # Derde bericht: Notificaties en commands
+                        await application.bot.send_message(
+                            chat_id=telegram_id,
+                            text="🔔 **Automatische Updates**\n\n"
+                                 "Je krijgt een bericht wanneer:\n"
+                                 "✅ Content beschikbaar is in Emby\n"
+                                 "🆕 Er nieuwe afleveringen zijn van series die je kijkt\n\n"
+                                 "_Notificaties uitzetten? Gebruik /notifications_\n\n"
+                                 "─────────────\n\n"
+                                 "⚙️ **Handige Commands:**\n\n"
+                                 "/help → Uitgebreide handleiding\n"
+                                 "/status → Bekijk je aanvragen\n"
+                                 "/recent → Laatst toegevoegd\n"
+                                 "/myshows → Jouw series\n\n"
+                                 "─────────────\n\n"
+                                 "🎬 **Start nu:** Stuur me een titel!\n\n"
+                                 "_Veel kijkplezier!_ 🍿",
                             parse_mode="Markdown"
                         )
                         
