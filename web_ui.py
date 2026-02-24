@@ -12,36 +12,34 @@ from functools import wraps
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
 
-# Prefer /app/config directory if it exists (Docker volume mount)
-# Otherwise fall back to root-level config.yaml
-if os.path.isdir("config"):
-    CONFIG_FILE = "config/config.yaml"
-    # Auto-create from example if missing
-    if not os.path.exists(CONFIG_FILE):
-        try:
-            if os.path.exists("config.example.yaml"):
-                import shutil
-                shutil.copyfile("config.example.yaml", CONFIG_FILE)
-                print(f"✓ Created {CONFIG_FILE} from config.example.yaml")
-            else:
-                # Create minimal placeholder
-                with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-                    f.write(
-                        "admin_telegram_id: 0\n"
-                        "emby_api_key: \"\"\n"
-                        "emby_url: \"http://127.0.0.1:8096\"\n"
-                        "ombi_api_key: \"\"\n"
-                        "ombi_api_key_header: ApiKey\n"
-                        "ombi_url: \"http://127.0.0.1:3579\"\n"
-                        "poll_interval_seconds: 60\n"
-                        "telegram_token: \"\"\n"
-                        "web_ui_port: 5000\n"
-                    )
-                print(f"✓ Created placeholder {CONFIG_FILE}")
-        except Exception as e:
-            print(f"⚠ Failed to create {CONFIG_FILE}: {e}")
-else:
-    CONFIG_FILE = "config.yaml"
+# Always use config/ directory for consistency
+CONFIG_FILE = "config/config.yaml"
+
+# Ensure config directory and file exist at startup
+if not os.path.exists(CONFIG_FILE):
+    try:
+        os.makedirs("config", exist_ok=True)
+        if os.path.exists("config.example.yaml"):
+            import shutil
+            shutil.copyfile("config.example.yaml", CONFIG_FILE)
+            print(f"✓ Created {CONFIG_FILE} from config.example.yaml")
+        else:
+            # Create minimal placeholder
+            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+                f.write(
+                    "admin_telegram_id: 0\n"
+                    "emby_api_key: \"\"\n"
+                    "emby_url: \"http://127.0.0.1:8096\"\n"
+                    "ombi_api_key: \"\"\n"
+                    "ombi_api_key_header: ApiKey\n"
+                    "ombi_url: \"http://127.0.0.1:3579\"\n"
+                    "poll_interval_seconds: 60\n"
+                    "telegram_token: \"\"\n"
+                    "web_ui_port: 5000\n"
+                )
+            print(f"✓ Created placeholder {CONFIG_FILE}")
+    except Exception as e:
+        print(f"⚠ Failed to create {CONFIG_FILE}: {e}")
     
 DATA_DIR = "data"
 REQUESTS_FILE = os.path.join(DATA_DIR, "requests.json")

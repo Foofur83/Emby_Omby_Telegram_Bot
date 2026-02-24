@@ -19,11 +19,11 @@ COPY . .
 # Verify templates were copied - debug
 RUN ls -la /app/templates/ || echo "WARNING: Templates directory not found!"
 
-# Maak data directory en supervisor log dir
-RUN mkdir -p /app/data /var/log/supervisor
+# Maak data en config directories, supervisor log dir
+RUN mkdir -p /app/data /app/config /var/log/supervisor
 
-# Volume voor persistent data
-VOLUME /app/data
+# Volumes voor persistent data en config
+VOLUME ["/app/data", "/app/config"]
 
 # Supervisord config (plaats naar /etc)
 COPY supervisor/emby.conf /etc/supervisor/conf.d/emby.conf

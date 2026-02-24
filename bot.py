@@ -3038,44 +3038,40 @@ async def background_poller(application):
 
 
 def load_config(path: str = "config.yaml") -> dict:
-    """Load config, preferring /app/config directory if it exists (Docker volume)"""
+    """Load config, creating config/config.yaml if needed"""
     import shutil
     
-    # Prefer config/ directory if it exists (Docker volume mount)
-    if os.path.isdir("config"):
-        config_path = "config/config.yaml"
-        # Auto-create from example if missing
-        if not os.path.exists(config_path):
-            try:
-                if os.path.exists("config.example.yaml"):
-                    shutil.copyfile("config.example.yaml", config_path)
-                    print(f"✓ Created {config_path} from config.example.yaml")
-                else:
-                    # Create minimal placeholder
-                    os.makedirs("config", exist_ok=True)
-                    with open(config_path, "w", encoding="utf-8") as f:
-                        f.write(
-                            "admin_telegram_id: 0\n"
-                            "emby_api_key: \"\"\n"
-                            "emby_url: \"http://127.0.0.1:8096\"\n"
-                            "ombi_api_key: \"\"\n"
-                            "ombi_api_key_header: ApiKey\n"
-                            "ombi_url: \"http://127.0.0.1:3579\"\n"
-                            "poll_interval_seconds: 60\n"
-                            "telegram_token: \"\"\n"
-                            "web_ui_port: 5000\n"
-                        )
-                    print(f"✓ Created placeholder {config_path}")
-            except Exception as e:
-                print(f"⚠ Failed to create {config_path}: {e}")
-        
-        if os.path.exists(config_path):
-            with open(config_path, "r", encoding="utf-8") as f:
-                return yaml.safe_load(f) or {}
+    # Always use config/ directory for consistency
+    config_path = "config/config.yaml"
     
-    # Fallback to root-level config.yaml
-    if os.path.exists(path):
-        with open(path, "r", encoding="utf-8") as f:
+    # Auto-create from example if missing
+    if not os.path.exists(config_path):
+        try:
+            os.makedirs("config", exist_ok=True)
+            if os.path.exists("config.example.yaml"):
+                shutil.copyfile("config.example.yaml", config_path)
+                print(f"✓ Created {config_path} from config.example.yaml")
+            else:
+                # Create minimal placeholder
+                with open(config_path, "w", encoding="utf-8") as f:
+                    f.write(
+                        "admin_telegram_id: 0\n"
+                        "emby_api_key: \"\"\n"
+                        "emby_url: \"http://127.0.0.1:8096\"\n"
+                        "ombi_api_key: \"\"\n"
+                        "ombi_api_key_header: ApiKey\n"
+                        "ombi_url: \"http://127.0.0.1:3579\"\n"
+                        "poll_interval_seconds: 60\n"
+                        "telegram_token: \"\"\n"
+                        "web_ui_port: 5000\n"
+                    )
+                print(f"✓ Created placeholder {config_path}")
+        except Exception as e:
+            print(f"⚠ Failed to create {config_path}: {e}")
+    
+    # Load config from config/ directory
+    if os.path.exists(config_path):
+        with open(config_path, "r", encoding="utf-8") as f:
             return yaml.safe_load(f) or {}
     
     return {}
@@ -3085,8 +3081,12 @@ def main():
     config = load_config()
     token = config.get("telegram_token") or os.environ.get("TELEGRAM_TOKEN")
     if not token:
-        print("Telegram token missing. Set telegram_token in config.yaml or TELEGRAM_TOKEN env var.")
-        return
+        print("⚠️  Telegram token missing. Set telegram_token in config.yaml or TELEGRAM_TOKEN env var.")
+        print("⚠️  Bot will not start until token is configured.")
+        # Sleep indefinitely to prevent supervisor restart loop
+        import time
+        while True:
+            time.sleep(3600)
 
     bot_instance = OmbiEmbyBot(config)
 
