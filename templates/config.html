@@ -1,3 +1,4 @@
+<!-- Author: Foofur83 -->
 {% extends 'base.html' %}
 
 {% block title %}Configuratie - Emby Bot{% endblock %}
@@ -50,6 +51,11 @@
         <div class="form-group">
             <label for="poll_interval_seconds">Poll Interval (seconden)</label>
             <input type="number" id="poll_interval_seconds" name="poll_interval_seconds" value="{{ config.poll_interval_seconds }}" min="10" required>
+        </div>
+        
+        <div class="form-group">
+            <label for="web_ui_port">Web UI Port</label>
+            <input type="number" id="web_ui_port" name="web_ui_port" value="{{ config.web_ui_port or 5000 }}" min="1024" max="65535" required>
         </div>
         
         <button type="submit">💾 Opslaan</button>

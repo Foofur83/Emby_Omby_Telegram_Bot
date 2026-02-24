@@ -1,3 +1,4 @@
+# Author: Foofur83
 # Python
 __pycache__/
 *.py[cod]
@@ -37,6 +38,8 @@ docker-compose.yml
 
 # Data (gebruik volume)
 data/
+config/
+config.yaml
 *.json
 
 # Logs

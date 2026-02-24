@@ -1,3 +1,4 @@
+<!-- Author: Foofur83 -->
 {% extends 'base.html' %}
 
 {% block title %}Handleiding - Emby Bot{% endblock %}
@@ -63,7 +64,7 @@
             Na het wijzigen van configuratie moet je de bot <strong>herstarten</strong> voordat wijzigingen actief worden!
         </p>
         <p style="color: #94a3b8; margin-top: 5px; font-size: 0.9rem;">
-            Stop de bot (Ctrl+C) en start opnieuw met <code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">python main.py</code>
+            Herstart de Container of stop de bot (Ctrl+C) en start opnieuw met <code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">python main.py</code>
         </p>
     </div>
 </div>
@@ -80,7 +81,7 @@
         <li>Jij ontvangt een notificatie als admin</li>
         <li>Ga naar <strong style="color: #e2e8f0;">Gebruikers</strong> in de web interface</li>
         <li>Vind de gebruiker in de lijst (status: ❌ Niet goedgekeurd)</li>
-        <li>Vul het <strong style="color: #e2e8f0;">Emby gebruikersnaam</strong> in</li>
+        <li>Vul de <strong style="color: #e2e8f0;">Emby gebruikersnaam</strong> in</li>
         <li>Klik op <strong style="color: #10b981;">✅ Goedkeuren</strong></li>
         <li>De gebruiker ontvangt automatisch een Telegram notificatie</li>
     </ol>
@@ -152,12 +153,18 @@
     <p style="color: #94a3b8; margin-bottom: 10px;">
         <strong style="color: #ef4444;">⚠️ BELANGRIJK:</strong> Wijzig het standaard wachtwoord direct!
     </p>
+    <p style="color: #94a3b8; margin-bottom: 10px;">
+        Standaard wachtwoord bij eerste boot: <code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">admin123</code>
+    </p>
     <ol style="color: #94a3b8; margin-left: 20px; line-height: 1.8;">
-        <li>Open <code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">web_ui.py</code> in een text editor</li>
-        <li>Zoek naar: <code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">ADMIN_PASSWORD = "admin123"</code></li>
-        <li>Wijzig naar een sterk wachtwoord</li>
-        <li>Herstart de web interface</li>
+        <li>Login met het standaard wachtwoord</li>
+        <li>Klik op <strong style="color: #e2e8f0;">🔒 Pass</strong> in de navigatie (of het rode waarschuwingsbanner op het dashboard)</li>
+        <li>Vul je huidige wachtwoord in en kies een nieuw sterk wachtwoord (min. 6 tekens)</li>
+        <li>Klik op "Wijzig Wachtwoord" - het wordt opgeslagen in <code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">config.yaml</code></li>
     </ol>
+    <p style="color: #64748b; font-size: 0.9rem; margin-top: 10px; font-style: italic;">
+        💡 Je kunt het wachtwoord ook handmatig wijzigen in config.yaml door het veld <code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">admin_password</code> aan te passen.
+    </p>
     
     <h3 style="color: #3b82f6; margin: 20px 0 10px 0;">2. Toegang Beperken</h3>
     <p style="color: #94a3b8; margin-bottom: 10px;">Aanbevolen beveiligingsmaatregelen:</p>
@@ -193,8 +200,8 @@
     
     <h3 style="color: #3b82f6; margin: 20px 0 10px 0;">Kan Niet Inloggen</h3>
     <ul style="color: #94a3b8; margin-left: 20px; line-height: 1.8;">
-        <li>Standaard wachtwoord: <code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">admin123</code></li>
-        <li>Check <code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">ADMIN_PASSWORD</code> in <code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">web_ui.py</code></li>
+        <li>Standaard wachtwoord bij eerste boot: <code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">admin123</code></li>
+        <li>Check het veld <code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">admin_password</code> in <code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">config.yaml</code> of <code style="background: #1e293b; padding: 2px 6px; border-radius: 4px;">config/config.yaml</code></li>
         <li>Clear browser cookies en probeer opnieuw</li>
     </ul>
     

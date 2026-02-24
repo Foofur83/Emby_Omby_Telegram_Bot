@@ -1,8 +1,19 @@
+<!-- Author: Foofur83 -->
 {% extends 'base.html' %}
 
 {% block title %}Dashboard - Emby Bot{% endblock %}
 
 {% block content %}
+{% if is_default_password %}
+<div style="background: rgba(239, 68, 68, 0.1); border-left: 4px solid #ef4444; padding: 16px; margin-bottom: 24px; border-radius: 8px;">
+    <h3 style="color: #ef4444; margin-bottom: 8px;">🔒 BEVEILIGINGSWAARSCHUWING</h3>
+    <p style="color: #fca5a5; margin-bottom: 12px;">Je gebruikt nog het standaard wachtwoord <code style="background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px;">admin123</code></p>
+    <a href="{{ url_for('change_password') }}" style="display: inline-block; background: #ef4444; color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-weight: 500;">
+        Wijzig Wachtwoord Nu →
+    </a>
+</div>
+{% endif %}
+
 <div class="stats">
     <div class="stat-box">
         <h3>Totaal Aanvragen</h3>

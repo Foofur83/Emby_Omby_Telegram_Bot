@@ -1,5 +1,7 @@
+# Author: Foofur83
 # Configuratie met API keys
 config.yaml
+config/
 
 # Python
 __pycache__/

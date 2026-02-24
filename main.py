@@ -1,3 +1,4 @@
+# Author: Foofur83
 """
 Emby Bot - Central Launcher
 Start de Telegram bot EN web interface (beide!)

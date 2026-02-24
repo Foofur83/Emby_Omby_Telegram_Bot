@@ -1,5 +1,4 @@
-version: '3.8'
-
+# Author: Foofur83
 version: '3.8'
 
 services:
@@ -13,7 +12,6 @@ services:
     volumes:
       - config_data:/app/config    # named volume: stores config inside Docker (no host path required)
       - data:/app/data             # named volume for persistent data
-      - templates:/app/templates   # named volume for templates (optional)
     environment:
       - TZ=Europe/Amsterdam
     networks:
@@ -26,4 +24,3 @@ networks:
 volumes:
   config_data:
   data:
-  templates:

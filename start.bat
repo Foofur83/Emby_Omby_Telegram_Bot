@@ -1,4 +1,5 @@
 @echo off
+REM Author: Foofur83
 REM Emby Bot Launcher voor Windows
 REM Start ALTIJD beide services (Bot + Web)
 

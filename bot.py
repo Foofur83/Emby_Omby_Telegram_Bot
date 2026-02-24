@@ -1,3 +1,4 @@
+# Author: Foofur83
 import asyncio
 import json
 import logging
@@ -262,12 +263,60 @@ class OmbiEmbyBot:
         data, status = await self._request_json("POST", url, headers=headers, json=payload, timeout=10)
         if data and not (isinstance(data, str) and "<" in data):
             logger.info("Ombi %s request succeeded", media_type)
+            # Log response structure voor debugging
+            if isinstance(data, dict):
+                logger.debug(f"Ombi response keys: {list(data.keys())}")
             return data
         logger.error("Ombi %s request failed. Check configuration.", media_type)
-        if data and not (isinstance(data, str) and "<" in data):
-            logger.info("Ombi %s request succeeded", media_type)
-            return data
-        logger.error("Ombi %s request failed. Check configuration.", media_type)
+        return None
+
+    async def ombi_get_all_requests(self):
+        """Get all movie and TV requests from Ombi with current status"""
+        if not self.ombi_url:
+            return []
+        await self.ensure_session()
+        headers = {self.ombi_key_header: self.ombi_key} if self.ombi_key else {}
+        
+        all_requests = []
+        
+        # Get all movie requests
+        url = f"{self.ombi_url}/api/v1/Request/movie"
+        logger.debug(f"Fetching all Ombi movie requests: {url}")
+        data, status = await self._request_json("GET", url, headers=headers, timeout=10)
+        if data and isinstance(data, list):
+            for item in data:
+                item["mediaType"] = "movie"
+            all_requests.extend(data)
+            logger.info(f"Fetched {len(data)} movie requests from Ombi")
+        
+        # Get all TV requests
+        url = f"{self.ombi_url}/api/v1/Request/tv"
+        logger.debug(f"Fetching all Ombi TV requests: {url}")
+        data, status = await self._request_json("GET", url, headers=headers, timeout=10)
+        if data and isinstance(data, list):
+            for item in data:
+                item["mediaType"] = "tv"
+            all_requests.extend(data)
+            logger.info(f"Fetched {len(data)} TV requests from Ombi")
+        
+        return all_requests
+
+    async def ombi_get_request_by_id(self, request_id: int, media_type: str = "movie"):
+        """Get request details from Ombi by request ID (via fetching all requests)"""
+        if not request_id:
+            return None
+        
+        # Haal alle requests op en filter op ID
+        all_requests = await self.ombi_get_all_requests()
+        
+        # Zoek de specifieke request
+        for req in all_requests:
+            req_id = req.get("requestId") or req.get("id")
+            if req_id == request_id:
+                logger.info(f"Found Ombi request {request_id}: available={req.get('available', False)}")
+                return req
+        
+        logger.warning(f"Request ID {request_id} not found in Ombi")
         return None
 
     # Emby
@@ -297,12 +346,35 @@ class OmbiEmbyBot:
     async def emby_search_smart(self, title: str, content_type: str = "Movie"):
         """
         Slimmere Emby search die meerdere varianten probeert
-        om betere matches te vinden
+        om betere matches te vinden. Filtert op similarity.
         """
+        from difflib import SequenceMatcher
+        
+        def similarity(a: str, b: str) -> float:
+            """Calculate similarity score between two strings (0-1)"""
+            return SequenceMatcher(None, a.lower(), b.lower()).ratio()
+        
         # Probeer eerst exacte match
         result = await self.emby_search(title, content_type)
         if result and result.get("Items"):
-            return result
+            items = result["Items"]
+            
+            # Filter results by title similarity - keep only good matches (>0.6 similarity)
+            filtered_items = []
+            for item in items:
+                item_name = item.get("Name", "")
+                score = similarity(title, item_name)
+                
+                # Log similarity for debugging
+                logger.info(f"  Similarity: {score:.2f} - '{item_name}' vs '{title}'")
+                
+                if score >= 0.6:  # At least 60% similar
+                    filtered_items.append(item)
+            
+            if filtered_items:
+                result["Items"] = filtered_items
+                logger.info(f"Filtered to {len(filtered_items)} relevant results (similarity >= 0.6)")
+                return result
         
         # Probeer zonder jaar (bijv. "The Matrix (1999)" -> "The Matrix")
         import re
@@ -311,7 +383,11 @@ class OmbiEmbyBot:
             logger.info(f"Probeer zonder jaar: '{title_no_year}'")
             result = await self.emby_search(title_no_year, content_type)
             if result and result.get("Items"):
-                return result
+                items = result["Items"]
+                filtered_items = [item for item in items if similarity(title_no_year, item.get("Name", "")) >= 0.6]
+                if filtered_items:
+                    result["Items"] = filtered_items
+                    return result
         
         # Probeer zonder "The" aan het begin
         if title.lower().startswith("the "):
@@ -319,7 +395,11 @@ class OmbiEmbyBot:
             logger.info(f"Probeer zonder 'The': '{title_no_the}'")
             result = await self.emby_search(title_no_the, content_type)
             if result and result.get("Items"):
-                return result
+                items = result["Items"]
+                filtered_items = [item for item in items if similarity(title_no_the, item.get("Name", "")) >= 0.6]
+                if filtered_items:
+                    result["Items"] = filtered_items
+                    return result
         
         # Probeer met "The" aan het eind (bijv. "Matrix, The")
         if not title.lower().startswith("the ") and ", the" not in title.lower():
@@ -327,7 +407,11 @@ class OmbiEmbyBot:
             logger.info(f"Probeer met 'The' aan eind: '{title_with_the_end}'")
             result = await self.emby_search(title_with_the_end, content_type)
             if result and result.get("Items"):
-                return result
+                items = result["Items"]
+                filtered_items = [item for item in items if similarity(title, item.get("Name", "")) >= 0.6]
+                if filtered_items:
+                    result["Items"] = filtered_items
+                    return result
         
         # Geen match gevonden
         logger.warning(f"Geen Emby match gevonden voor '{title}' met alle varianten")
@@ -514,6 +598,80 @@ class OmbiEmbyBot:
                 data = await resp.json()
                 return data.get("Items", [])
         return []
+
+    async def emby_verify_series_seasons(self, series_name: str, requested_seasons_data: list):
+        """
+        Verify per-season episode completeness for a series.
+        requested_seasons_data format: [{"seasonNumber": 11, "episodes": [...]}, ...]
+        
+        Returns: (is_complete: bool, series_id: str, message: str)
+        """
+        if not self.emby_url or not requested_seasons_data:
+            return False, None, "Geen episode data"
+        
+        await self.ensure_session()
+        
+        # Find the series in Emby
+        url = f"{self.emby_url}/Items"
+        params = {"searchTerm": series_name, "IncludeItemTypes": "Series", "Recursive": "true"}
+        headers = {"X-Emby-Token": self.emby_key} if self.emby_key else {}
+        data, status = await self._request_json("GET", url, params=params, headers=headers, timeout=10)
+        
+        if not data or not data.get("Items"):
+            logger.warning(f"Serie '{series_name}' niet gevonden in Emby")
+            return False, None, "Serie niet gevonden in Emby"
+        
+        series_id = data["Items"][0]["Id"]
+        
+        # Get all seasons for this series
+        seasons = await self.emby_get_seasons(series_id)
+        if not seasons:
+            logger.warning(f"Geen seizoenen gevonden voor '{series_name}'")
+            return False, series_id, "Geen seizoenen gevonden"
+        
+        # Build season map: {season_number: season_id}
+        season_map = {s.get("IndexNumber"): s.get("Id") for s in seasons if s.get("IndexNumber") is not None}
+        
+        # Check each requested season
+        incomplete_seasons = []
+        for season_req in requested_seasons_data:
+            season_num = season_req.get("seasonNumber")
+            expected_episodes = season_req.get("episodes", [])
+            expected_count = len(expected_episodes)
+            
+            if expected_count == 0:
+                # No specific episodes requested, assume season is OK if it exists
+                if season_num in season_map:
+                    continue
+                else:
+                    incomplete_seasons.append(f"S{season_num} (niet gevonden)")
+                    continue
+            
+            # Get episodes for this season from Emby
+            season_id = season_map.get(season_num)
+            if not season_id:
+                logger.warning(f"Seizoen {season_num} niet gevonden in Emby voor '{series_name}'")
+                incomplete_seasons.append(f"S{season_num} (niet gevonden)")
+                continue
+            
+            episodes = await self.emby_get_episodes(series_id, season_id)
+            actual_count = len(episodes)
+            
+            # Calculate ratio for THIS season
+            ratio = actual_count / expected_count if expected_count > 0 else 0
+            
+            logger.info(f"'{series_name}' S{season_num}: {actual_count}/{expected_count} episodes ({ratio:.0%})")
+            
+            if ratio < 0.7:
+                incomplete_seasons.append(f"S{season_num} ({actual_count}/{expected_count})")
+        
+        if incomplete_seasons:
+            message = f"Onvoldoende episodes: {', '.join(incomplete_seasons)}"
+            logger.info(f"'{series_name}' nog niet compleet: {message}")
+            return False, series_id, message
+        
+        logger.info(f"'{series_name}' alle aangevraagde seizoenen zijn compleet!")
+        return True, series_id, "Alle seizoenen compleet"
 
     async def emby_get_user_by_name(self, username: str):
         """Get Emby user ID by username"""
@@ -1915,12 +2073,22 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Volgende suggestie
         next_index = current_index + 1
         if next_index >= len(results):
-            # Check of het bericht een foto heeft (caption) of tekst is
+            # Einde van resultaten - bied manual entry aan
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("✍️ Handmatig opgeven", callback_data="manual_entry")],
+                [InlineKeyboardButton("❌ Annuleren", callback_data="cancel")]
+            ])
+            
             if query.message.photo:
-                await query.edit_message_caption(caption="\u274c Geen resultaten meer. Probeer een andere zoekopdracht.")
+                await query.edit_message_caption(
+                    caption="❌ Geen resultaten meer.\n\nWil je de titel handmatig opgeven?",
+                    reply_markup=keyboard
+                )
             else:
-                await query.edit_message_text(text="\u274c Geen resultaten meer. Probeer een andere zoekopdracht.")
-            pending.pop(user.id, None)
+                await query.edit_message_text(
+                    text="❌ Geen resultaten meer.\n\nWil je de titel handmatig opgeven?",
+                    reply_markup=keyboard
+                )
             return
         
         state["current_index"] = next_index
@@ -1932,6 +2100,65 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             len(results),
             query.message.message_id
         )
+    
+    elif data == "manual_entry":
+        # Start manual entry flow - send NEW message for natural conversation
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🎬 Film", callback_data="manual_movie")],
+            [InlineKeyboardButton("📺 Serie", callback_data="manual_series")],
+            [InlineKeyboardButton("❌ Annuleren", callback_data="cancel")]
+        ])
+        
+        # Close old message
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except:
+            pass
+        
+        # Send fresh message
+        await context.bot.send_message(
+            chat_id=query.message.chat_id,
+            text="📝 Is het een **film** of een **serie**?",
+            reply_markup=keyboard,
+            parse_mode="Markdown"
+        )
+    
+    elif data in ("manual_movie", "manual_series"):
+        # User selected type - send NEW message asking for title
+        media_type = "Movie" if data == "manual_movie" else "Series"
+        type_icon = "🎬" if media_type == "Movie" else "📺"
+        type_dutch = "film" if media_type == "Movie" else "serie"
+        
+        pending[user.id] = {
+            "awaiting_manual_title": True,
+            "manual_type": media_type
+        }
+        
+        # Close old message
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except:
+            pass
+        
+        # Send fresh message
+        await context.bot.send_message(
+            chat_id=query.message.chat_id,
+            text=f"{type_icon} Geef de **exacte titel** op van de {type_dutch}:",
+            parse_mode="Markdown"
+        )
+    
+    elif data == "cancel":
+        # Cancel current operation
+        pending.pop(user.id, None)
+        
+        # Close message cleanly
+        try:
+            if query.message.photo:
+                await query.edit_message_caption(caption="❌ Geannuleerd.")
+            else:
+                await query.edit_message_text(text="❌ Geannuleerd.")
+        except:
+            pass
 
 
 def extract_title_from_message(text: str) -> str | None:
@@ -1943,25 +2170,29 @@ def extract_title_from_message(text: str) -> str | None:
     text_clean = re.sub(r'[.!?,]+$', '', text_clean)
     text_lower = text_clean.lower()
     
-    # Request keywords
+    # Request keywords - check as whole words only (not substrings)
     request_keywords = [
         "kijken", "zoeken", "toevoegen", "vind", "zoek", "wil", 
         "voeg", "toe", "zin", "graag",
         "watch", "add", "request", "find", "search"
     ]
     
-    # Check if this looks like a request
-    has_keyword = any(kw in text_lower for kw in request_keywords)
+    # Check if this looks like a request - using word boundaries to avoid false matches like "Baywatch"
+    has_keyword = any(re.search(r'\b' + re.escape(kw) + r'\b', text_lower) for kw in request_keywords)
     
-    # Als geen keywords, accepteer als directe titel (bijv. "Predator")
+    # Als geen keywords, accepteer als directe titel (bijv. "Predator", "Baywatch")
     if not has_keyword:
         # Validatie: minimaal 2 karakters, geen commando's
         if len(text_clean) >= 2 and not text_lower.startswith("/"):
             # Geen stopwoorden als enkele titel
-            stopwords = ["een", "de", "het", "film", "serie", "movie", "a", "the", "hi", "hallo", "hey", "hoi", "dag"]
+            stopwords = ["een", "de", "het", "film", "serie", "movie", "a", "the", "hi", "hallo", "hey", "hoi", "dag", "help"]
             if text_lower not in stopwords:
                 logger.info(f"✓ Extracted direct title: '{text_clean}' from: '{text}'")
                 return text_clean
+            else:
+                logger.info(f"Direct title is stopword: '{text}'")
+        else:
+            logger.info(f"Direct title validation failed for: '{text}' (len={len(text_clean)}, starts_with_slash={text_lower.startswith('/')})")
         return None
     
     # Patterns voor titel extractie (van specifiek naar algemeen)
@@ -2061,6 +2292,141 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         return
     
+    # MANUAL ENTRY STATES - User manually specifying content details
+    if state and state.get("awaiting_manual_title"):
+        # User provided title
+        manual_title = text.strip()
+        
+        if len(manual_title) < 2:
+            await update.message.reply_text("⚠️ Titel is te kort. Geef een geldige titel.")
+            return
+        
+        media_type = state.get("manual_type", "Movie")
+        
+        # Store title and move to year
+        state["manual_title"] = manual_title
+        state.pop("awaiting_manual_title")
+        state["awaiting_manual_year"] = True
+        
+        await update.message.reply_text(
+            f"✅ Titel: **{manual_title}**\n\n"
+            "📅 In welk **jaar** is deze uitgebracht? (of typ 'skip' om over te slaan)",
+            parse_mode="Markdown"
+        )
+        return
+    
+    if state and state.get("awaiting_manual_year"):
+        # User provided year (or skip)
+        year_text = text.strip().lower()
+        manual_year = None
+        
+        if year_text != "skip":
+            # Try to parse year
+            if year_text.isdigit() and 1900 <= int(year_text) <= 2030:
+                manual_year = int(year_text)
+            else:
+                await update.message.reply_text("⚠️ Ongeldig jaar. Geef een jaar tussen 1900-2030, of typ 'skip'.")
+                return
+        
+        media_type = state.get("manual_type", "Movie")
+        state["manual_year"] = manual_year
+        state.pop("awaiting_manual_year")
+        
+        # For series, ask for season. For movies, ask for streaming service
+        if media_type == "Series":
+            state["awaiting_manual_season"] = True
+            await update.message.reply_text(
+                "📺 Welk **seizoen** wil je aanvragen?\n\n"
+                "Typ een nummer (bijv. '1'), 'all' voor alle seizoenen, of 'skip' om over te slaan.",
+                parse_mode="Markdown"
+            )
+        else:
+            state["awaiting_manual_streaming"] = True
+            await update.message.reply_text(
+                "📡 Op welke **streamingdienst** is of was deze beschikbaar?\n\n"
+                "(bijv. Netflix, Disney+, Prime Video)\n\n"
+                "Of typ 'skip' om over te slaan.",
+                parse_mode="Markdown"
+            )
+        return
+    
+    if state and state.get("awaiting_manual_season"):
+        # User provided season (series only)
+        season_text = text.strip().lower()
+        manual_season = None
+        
+        if season_text != "skip":
+            if season_text == "all":
+                manual_season = "all"
+            elif season_text.isdigit():
+                manual_season = int(season_text)
+            else:
+                await update.message.reply_text("⚠️ Ongeldig seizoen. Typ een nummer, 'all', of 'skip'.")
+                return
+        
+        state["manual_season"] = manual_season
+        state.pop("awaiting_manual_season")
+        state["awaiting_manual_streaming"] = True
+        
+        await update.message.reply_text(
+            "📡 Op welke **streamingdienst** is of was deze beschikbaar?\n\n"
+            "(bijv. Netflix, Disney+, Prime Video)\n\n"
+            "Of typ 'skip' om over te slaan.",
+            parse_mode="Markdown"
+        )
+        return
+    
+    if state and state.get("awaiting_manual_streaming"):
+        # User provided streaming service (or skip) - final step
+        streaming_text = text.strip()
+        manual_streaming = None if streaming_text.lower() == "skip" else streaming_text
+        
+        # Collect all manual data
+        manual_title = state.get("manual_title")
+        manual_year = state.get("manual_year")
+        manual_season = state.get("manual_season")
+        media_type = state.get("manual_type", "Movie")
+        
+        # Save as manual request
+        records = load_requests()
+        
+        request_entry = {
+            "telegram_user_id": user.id,
+            "telegram_username": user.username or user.first_name,
+            "title": manual_title,
+            "content_type": media_type,
+            "manual_entry": True,
+            "year": manual_year,
+            "streaming_service": manual_streaming,
+            "requested_at": datetime.now(timezone.utc).isoformat(),
+            "notified": False
+        }
+        
+        if media_type == "Series" and manual_season:
+            request_entry["season"] = manual_season
+        
+        records.append(request_entry)
+        save_requests(records)
+        
+        # Build confirmation message
+        details = [f"📝 **{manual_title}**"]
+        if manual_year:
+            details.append(f"📅 {manual_year}")
+        if media_type == "Series" and manual_season:
+            season_text = "Alle seizoenen" if manual_season == "all" else f"Seizoen {manual_season}"
+            details.append(f"📺 {season_text}")
+        if manual_streaming:
+            details.append(f"📡 {manual_streaming}")
+        
+        await update.message.reply_text(
+            "✅ **Handmatige aanvraag opgeslagen!**\n\n" + "\n".join(details) + 
+            "\n\n💡 Een admin zal dit handmatig verwerken en toevoegen.",
+            parse_mode="Markdown"
+        )
+        
+        pending.pop(user.id, None)
+        return
+    
     # STATE 1: Waiting for film/serie choice
     if state and state.get("awaiting_type"):
         text_lower = text.lower()
@@ -2106,14 +2472,66 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         title = sel.get("title") or sel.get("name")
         bot: OmbiEmbyBot = context.application.bot_data["bot_instance"]
         
-        # Check Ombi's 'available' veld - Ombi weet al of content in Emby staat!
+        # Check if content is available in Emby - but VERIFY completeness!
         is_available = sel.get("available", False)
         
         if is_available:
-            # AL BESCHIKBAAR in Emby volgens Ombi!
-            await update.message.reply_text(f"🔍 '{title}' is beschikbaar, ophalen van Emby ID...")
+            # Ombi says it's available - but let's verify ALL seasons/episodes are present
+            await update.message.reply_text(f"🔍 '{title}' controleren in Emby...")
             
-            # Haal Emby item ID op voor playback
+            # Get detailed episode information from Emby
+            details = await bot.emby_get_series_details(title)
+            
+            if details and details.get("episodes"):
+                episodes = details["episodes"].get("Items", [])
+                episode_count = len(episodes)
+                series_data = details.get("series", {})
+                item_id = series_data.get("Id")
+                
+                # Get number of seasons from Ombi or Emby
+                ombi_seasons = sel.get("childRequests", [])
+                total_requested_episodes = sum(len(req.get("seasonRequests", [])) for req in ombi_seasons)
+                
+                # Check if we have a reasonable amount of content
+                # If requested specific seasons/episodes, verify we have most of them
+                if total_requested_episodes > 0:
+                    # User requested specific content - check if we have at least 70% of it
+                    availability_ratio = episode_count / total_requested_episodes
+                    
+                    if availability_ratio < 0.7:
+                        await update.message.reply_text(
+                            f"⚠️ **'{title}' is GEDEELTELIJK beschikbaar in Emby**\n\n"
+                            f"📊 Beschikbaar: {episode_count} van ~{total_requested_episodes} aangevraagde afleveringen\n\n"
+                            f"💡 Tip: Je kunt alsnog specifieke seizoenen aanvragen. Typ 'all' voor alle seizoenen of een nummer voor een specifiek seizoen.",
+                            parse_mode="Markdown"
+                        )
+                        return
+                
+                # Sufficient content available - show playback option
+                user_data = get_user_by_telegram_id(user.id)
+                
+                if user_data and user_data.get("approved") and user_data.get("emby_username"):
+                    keyboard = InlineKeyboardMarkup([[
+                        InlineKeyboardButton("▶️ Start Nu", callback_data=f"play:{item_id}:Series")
+                    ]])
+                    await update.message.reply_text(
+                        f"✅ **'{title}' is beschikbaar in Emby!**\n\n"
+                        f"📺 Serie - {episode_count} afleveringen beschikbaar",
+                        parse_mode="Markdown",
+                        reply_markup=keyboard
+                    )
+                else:
+                    await update.message.reply_text(
+                        f"✅ **'{title}' is beschikbaar in Emby!**\n\n"
+                        f"📺 Serie - {episode_count} afleveringen beschikbaar\n\n"
+                        "💡 Gebruik /register om je account te koppelen voor direct afspelen!",
+                        parse_mode="Markdown"
+                    )
+                pending.pop(user.id, None)
+                return
+            
+            # Series found in Ombi but couldn't get episode details from Emby
+            # Fall back to basic availability
             emby_result = await bot.emby_search_smart(title, content_type="Series")
             
             if emby_result and isinstance(emby_result, dict):
@@ -2127,15 +2545,17 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             InlineKeyboardButton("▶️ Start Nu", callback_data=f"play:{item_id}:Series")
                         ]])
                         await update.message.reply_text(
-                            f"✅ **'{title}' is al beschikbaar in Emby!**\n\n"
-                            f"Type: 📺 Serie",
+                            f"✅ **'{title}' is beschikbaar in Emby!**\n\n"
+                            f"📺 Serie\n\n"
+                            "⚠️ Let op: Ik kon niet verifiëren hoeveel afleveringen beschikbaar zijn.",
                             parse_mode="Markdown",
                             reply_markup=keyboard
                         )
                     else:
                         await update.message.reply_text(
-                            f"✅ **'{title}' is al beschikbaar in Emby!**\n\n"
-                            f"Type: 📺 Serie\n\n"
+                            f"✅ **'{title}' is beschikbaar in Emby!**\n\n"
+                            f"📺 Serie\n\n"
+                            "⚠️ Let op: Ik kon niet verifiëren hoeveel afleveringen beschikbaar zijn.\n\n"
                             "💡 Gebruik /register om je account te koppelen voor direct afspelen!",
                             parse_mode="Markdown"
                         )
@@ -2144,9 +2564,8 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             # Emby ID niet gevonden, maar Ombi zegt dat het beschikbaar is
             await update.message.reply_text(
-                f"✅ **'{title}' is beschikbaar in Emby volgens Ombi!**\n\n"
-                "Type: 📺 Serie\n\n"
-                "⚠️ Let op: Ik kon het niet vinden in Emby. Probeer handmatig te zoeken.",
+                f"⚠️ **'{title}' staat als beschikbaar in Ombi**\n\n"
+                "Maar ik kon het niet vinden in Emby. Probeer handmatig te zoeken of vraag het opnieuw aan.",
                 parse_mode="Markdown"
             )
             pending.pop(user.id, None)
@@ -2207,10 +2626,20 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         results = await bot.ombi_search(title)
         
         if not results:
+            # Geen resultaten - bied manual entry aan
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("✍️ Handmatig opgeven", callback_data="manual_entry")],
+                [InlineKeyboardButton("❌ Annuleren", callback_data="cancel")]
+            ])
+            
             await update.message.reply_text(
                 f"❌ Geen resultaten gevonden voor '{title}'.\n\n"
-                "💡 Probeer een andere titel of spelling!"
+                "Wil je de gegevens handmatig opgeven?",
+                reply_markup=keyboard
             )
+            
+            # Store original search title for context
+            pending[user.id] = {"original_search": title}
             return
         
         # Analyseer welke types in de resultaten zitten
@@ -2268,53 +2697,169 @@ async def background_poller(application):
         try:
             records = load_requests()
             changed = False
+            
+            # Group notifications by user and series to prevent spam
+            user_notifications = {}  # {user_id: {series_name: [episodes]}}
+            
             for r in records:
                 if r.get("notified"):
                     continue
+                
                 title = r.get("title")
                 ctype = r.get("content_type") or "Movie"
-                emby_res = await bot.emby_search_smart(title, content_type=ctype)
-                if emby_res and isinstance(emby_res, dict):
-                    items = emby_res.get("Items") or []
-                    if items:
-                        r["notified"] = True
-                        changed = True
-                        uid = r.get("telegram_user_id")
+                ombi_response = r.get("ombi_response")
+                uid = r.get("telegram_user_id")
+                
+                # Check voor handmatige entries - die hebben geen Ombi request ID
+                if r.get("manual_entry"):
+                    logger.info(f"Skipping manual entry: {title}")
+                    continue
+                
+                # Haal request ID uit ombi_response
+                if not ombi_response:
+                    logger.warning(f"No ombi_response for request: {title}")
+                    continue
+                
+                request_id = ombi_response.get("requestId") or ombi_response.get("id")
+                if not request_id:
+                    logger.warning(f"No request ID in ombi_response for: {title}")
+                    logger.debug(f"ombi_response keys: {list(ombi_response.keys())}")
+                    continue
+                
+                # Check Ombi voor actuele status
+                ombi_status = await bot.ombi_get_request_by_id(request_id, media_type=ctype.lower())
+                
+                if not ombi_status:
+                    logger.warning(f"Could not fetch Ombi status for request {request_id}")
+                    continue
+                
+                # Check available veld
+                is_available = ombi_status.get("available", False)
+                
+                if not is_available:
+                    logger.debug(f"'{title}' nog niet beschikbaar volgens Ombi")
+                    continue
+                
+                # Content is available! Nu verificatie doen
+                logger.info(f"✅ '{title}' is beschikbaar volgens Ombi!")
+                
+                # Voor series: check episode counts PER SEIZOEN
+                if ctype == "Series":
+                    # Haal requested seasons data uit Ombi
+                    child_requests = ombi_status.get("childRequests", [])
+                    all_season_requests = []
+                    
+                    for child in child_requests:
+                        season_requests = child.get("seasonRequests", [])
+                        all_season_requests.extend(season_requests)
+                    
+                    if all_season_requests:
+                        # Verifieer per-seizoen in Emby
+                        is_complete, series_emby_id, verify_msg = await bot.emby_verify_series_seasons(
+                            title, 
+                            all_season_requests
+                        )
                         
-                        # Get Emby item ID for playback
-                        item_id = items[0].get("Id")
+                        if not is_complete:
+                            logger.info(f"'{title}' nog niet compleet: {verify_msg}")
+                            continue  # Wacht tot alle seizoenen voldoende episodes hebben
                         
-                        # Check if user is linked to Emby
-                        user = get_user_by_telegram_id(uid)
+                        item_id = series_emby_id
+                        logger.info(f"'{title}' verificatie geslaagd - alle seizoenen compleet!")
+                    else:
+                        # Geen season details in Ombi - fallback naar Emby search
+                        logger.info(f"Geen seizoen data in Ombi voor '{title}', gebruik Emby search")
+                        emby_res = await bot.emby_search_smart(title, content_type="Series")
+                        if emby_res and emby_res.get("Items"):
+                            item_id = emby_res["Items"][0].get("Id")
+                        else:
+                            logger.warning(f"Kon geen Emby ID vinden voor '{title}'")
+                            continue
+                else:
+                    # Movie - vertrouw volledig op Ombi available status
+                    logger.info(f"Movie '{title}' beschikbaar, zoek Emby ID")
+                    emby_res = await bot.emby_search_smart(title, content_type="Movie")
+                    if emby_res and emby_res.get("Items"):
+                        item_id = emby_res["Items"][0].get("Id")
+                    else:
+                        logger.warning(f"Kon geen Emby ID vinden voor movie '{title}'")
+                        continue
+                
+                # Content is beschikbaar en geverifieerd - markeer voor notificatie
+                r["notified"] = True
+                changed = True
+                
+                # Group by user and series
+                if uid not in user_notifications:
+                    user_notifications[uid] = {}
+                
+                # Extract base series name (remove season info like "- S01")
+                base_title = re.sub(r'\s*-\s*S\d+\s*$', '', title)
+                
+                if base_title not in user_notifications[uid]:
+                    user_notifications[uid][base_title] = {
+                        "type": ctype,
+                        "item_id": item_id,
+                        "episodes": []
+                    }
+                
+                # Extract season number if present
+                season_match = re.search(r'S(\d+)', title)
+                if season_match:
+                    user_notifications[uid][base_title]["episodes"].append(season_match.group(1))
+            
+            # Send consolidated notifications
+            for uid, series_dict in user_notifications.items():
+                user = get_user_by_telegram_id(uid)
+                
+                for series_title, data in series_dict.items():
+                    ctype = data["type"]
+                    item_id = data["item_id"]
+                    episodes = data["episodes"]
+                    
+                    try:
+                        # Create inline keyboard with playback button
+                        keyboard = None
+                        if user and user.get("approved") and user.get("emby_username"):
+                            keyboard = InlineKeyboardMarkup([[
+                                InlineKeyboardButton("▶️ Start Nu", callback_data=f"play:{item_id}:{ctype}")
+                            ]])
                         
-                        try:
-                            # Create inline keyboard with playback button
-                            keyboard = None
-                            if user and user.get("approved") and user.get("emby_username"):
-                                keyboard = InlineKeyboardMarkup([[
-                                    InlineKeyboardButton("▶️ Start Nu", callback_data=f"play:{item_id}:{ctype}")
-                                ]])
-                            
-                            message = (
-                                f"🎉 **'{title}' is nu beschikbaar in Emby!**\n\n"
-                                f"Type: {'🎬 Film' if ctype == 'Movie' else '📺 Serie'}"
-                            )
-                            
-                            if keyboard:
-                                await application.bot.send_message(
-                                    chat_id=uid, 
-                                    text=message,
-                                    parse_mode="Markdown",
-                                    reply_markup=keyboard
+                        # Build message based on whether it's multiple episodes or single
+                        if ctype == "Series" and episodes:
+                            if len(episodes) > 1:
+                                seasons_text = ", ".join([f"S{s}" for s in sorted(set(episodes))])
+                                message = (
+                                    f"🎉 **'{series_title}' seizoenen beschikbaar in Emby!**\n\n"
+                                    f"📺 Nieuwe seizoenen: {seasons_text}"
                                 )
                             else:
-                                await application.bot.send_message(
-                                    chat_id=uid, 
-                                    text=message + "\n\n💡 Gebruik /register om je account te koppelen voor direct afspelen!",
-                                    parse_mode="Markdown"
+                                message = (
+                                    f"🎉 **'{series_title}' is nu beschikbaar in Emby!**\n\n"
+                                    f"📺 Serie - Seizoen {episodes[0]}"
                                 )
-                        except Exception:
-                            logger.exception("Failed to send notification to %s", uid)
+                        else:
+                            message = (
+                                f"🎉 **'{series_title}' is nu beschikbaar in Emby!**\n\n"
+                                f"Type: {'🎬 Film' if ctype == 'Movie' else '📺 Serie'}"
+                            )
+                        
+                        if keyboard:
+                            await application.bot.send_message(
+                                chat_id=uid, 
+                                text=message,
+                                parse_mode="Markdown",
+                                reply_markup=keyboard
+                            )
+                        else:
+                            await application.bot.send_message(
+                                chat_id=uid, 
+                                text=message + "\n\n💡 Gebruik /register om je account te koppelen voor direct afspelen!",
+                                parse_mode="Markdown"
+                            )
+                    except Exception:
+                        logger.exception("Failed to send notification to %s", uid)
+            
             if changed:
                 save_requests(records)
             
@@ -2493,9 +3038,46 @@ async def background_poller(application):
 
 
 def load_config(path: str = "config.yaml") -> dict:
+    """Load config, preferring /app/config directory if it exists (Docker volume)"""
+    import shutil
+    
+    # Prefer config/ directory if it exists (Docker volume mount)
+    if os.path.isdir("config"):
+        config_path = "config/config.yaml"
+        # Auto-create from example if missing
+        if not os.path.exists(config_path):
+            try:
+                if os.path.exists("config.example.yaml"):
+                    shutil.copyfile("config.example.yaml", config_path)
+                    print(f"✓ Created {config_path} from config.example.yaml")
+                else:
+                    # Create minimal placeholder
+                    os.makedirs("config", exist_ok=True)
+                    with open(config_path, "w", encoding="utf-8") as f:
+                        f.write(
+                            "admin_telegram_id: 0\n"
+                            "emby_api_key: \"\"\n"
+                            "emby_url: \"http://127.0.0.1:8096\"\n"
+                            "ombi_api_key: \"\"\n"
+                            "ombi_api_key_header: ApiKey\n"
+                            "ombi_url: \"http://127.0.0.1:3579\"\n"
+                            "poll_interval_seconds: 60\n"
+                            "telegram_token: \"\"\n"
+                            "web_ui_port: 5000\n"
+                        )
+                    print(f"✓ Created placeholder {config_path}")
+            except Exception as e:
+                print(f"⚠ Failed to create {config_path}: {e}")
+        
+        if os.path.exists(config_path):
+            with open(config_path, "r", encoding="utf-8") as f:
+                return yaml.safe_load(f) or {}
+    
+    # Fallback to root-level config.yaml
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
             return yaml.safe_load(f) or {}
+    
     return {}
 
 

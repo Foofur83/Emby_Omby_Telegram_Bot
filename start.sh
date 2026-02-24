@@ -1,4 +1,5 @@
 #!/bin/bash
+# Author: Foofur83
 # Emby Bot Launcher voor Linux/Mac
 # Start ALTIJD beide services (Bot + Web)
 

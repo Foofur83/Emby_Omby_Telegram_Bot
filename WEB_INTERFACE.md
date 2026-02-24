@@ -1,3 +1,4 @@
+<!-- Author: Foofur83 -->
 # Emby Bot Web Interface
 
 ## 🌐 Web Interface Gebruiken

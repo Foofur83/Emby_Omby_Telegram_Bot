@@ -1,3 +1,4 @@
+<!-- Author: Foofur83 -->
 # Contributing to Emby/Ombi Telegram Bot
 
 Bedankt voor je interesse om bij te dragen aan dit project! 🎉

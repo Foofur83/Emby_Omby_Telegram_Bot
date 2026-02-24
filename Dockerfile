@@ -1,3 +1,4 @@
+# Author: Foofur83
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -14,6 +15,9 @@ RUN pip install --no-cache-dir -r requirements.txt \
 
 # Kopieer applicatie code (alles zodat config.example.yaml en modules in de image zitten)
 COPY . .
+
+# Verify templates were copied - debug
+RUN ls -la /app/templates/ || echo "WARNING: Templates directory not found!"
 
 # Maak data directory en supervisor log dir
 RUN mkdir -p /app/data /var/log/supervisor

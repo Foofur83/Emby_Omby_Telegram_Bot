@@ -1,3 +1,4 @@
+<!-- Author: Foofur83 -->
 {% extends 'base.html' %}
 
 {% block title %}Aanvragen - Emby Bot{% endblock %}
@@ -35,7 +36,21 @@
         <tbody>
             {% for req in requests %}
             <tr>
-                <td>{{ req.title }}</td>
+                <td>
+                    {{ req.title }}
+                    {% if req.manual_entry %}
+                        <span class="badge" style="background: #8b5cf6; margin-left: 0.5rem;">✍️ Handmatig</span>
+                    {% endif %}
+                    {% if req.year %}
+                        <br><small style="color: #94a3b8;">📅 {{ req.year }}</small>
+                    {% endif %}
+                    {% if req.season %}
+                        <br><small style="color: #94a3b8;">📺 Seizoen {{ req.season }}</small>
+                    {% endif %}
+                    {% if req.streaming_service %}
+                        <br><small style="color: #94a3b8;">📡 {{ req.streaming_service }}</small>
+                    {% endif %}
+                </td>
                 <td>
                     {% if req.content_type == 'Movie' %}
                         🎬 Film
@@ -56,7 +71,7 @@
                     {% endif %}
                 </td>
                 <td>
-                    <form method="post" action="{{ url_for('delete_request', request_id=loop.index0) }}" style="display: inline;">
+                    <form method="post" action="{{ url_for('delete_request_by_hash', request_hash=req._hash) }}" style="display: inline;">
                         <button type="submit" class="btn btn-sm btn-danger" 
                                 onclick="return confirm('Weet je zeker dat je deze aanvraag wilt verwijderen?')">
                             🗑️ Verwijder

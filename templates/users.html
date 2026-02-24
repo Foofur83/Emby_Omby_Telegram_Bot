@@ -1,3 +1,4 @@
+<!-- Author: Foofur83 -->
 {% extends 'base.html' %}
 
 {% block title %}Gebruikers - Emby Bot{% endblock %}
@@ -13,6 +14,7 @@
                 <th>Telegram ID</th>
                 <th>Emby Gebruiker</th>
                 <th>Status</th>
+                <th>Notificaties</th>
                 <th>Acties</th>
             </tr>
         </thead>
@@ -28,6 +30,19 @@
                     {% else %}
                         <span class="badge badge-warning">In afwachting</span>
                     {% endif %}
+                </td>
+                <td>
+                    <form method="POST" action="{{ url_for('toggle_notifications', telegram_id=user.telegram_user_id) }}" style="display: inline;">
+                        {% if user.episode_notifications %}
+                            <button type="submit" class="badge badge-success" style="border: none; cursor: pointer;" title="Klik om uit te schakelen">
+                                🔔 Aan
+                            </button>
+                        {% else %}
+                            <button type="submit" class="badge" style="background: #64748b; border: none; cursor: pointer;" title="Klik om in te schakelen">
+                                🔕 Uit
+                            </button>
+                        {% endif %}
+                    </form>
                 </td>
                 <td>
                     <div class="actions">

@@ -1,3 +1,4 @@
+<!-- Author: Foofur83 -->
 # Screenshots & Demo
 
 ## 📱 Telegram Bot Interface
