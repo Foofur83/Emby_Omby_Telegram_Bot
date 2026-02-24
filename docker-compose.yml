@@ -1,5 +1,4 @@
 # Author: Foofur83
-version: '3.8'
 
 services:
   emby-app:

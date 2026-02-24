@@ -3080,8 +3080,9 @@ def load_config(path: str = "config.yaml") -> dict:
 def main():
     config = load_config()
     token = config.get("telegram_token") or os.environ.get("TELEGRAM_TOKEN")
-    if not token:
-        print("⚠️  Telegram token missing. Set telegram_token in config.yaml or TELEGRAM_TOKEN env var.")
+    # Check for missing or placeholder tokens
+    if not token or token in ["YOUR_TELEGRAM_BOT_TOKEN", ""]:
+        print("⚠️  Telegram token missing or placeholder. Set telegram_token in config.yaml or TELEGRAM_TOKEN env var.")
         print("⚠️  Bot will not start until token is configured.")
         # Sleep indefinitely to prevent supervisor restart loop
         import time
