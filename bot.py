@@ -3302,6 +3302,9 @@ def main():
     from telegram import Bot
     from functools import wraps
     
+    # Track logged messages to prevent duplicates
+    logged_messages = set()
+    
     # Wrap Message.reply_text
     original_reply_text = Message.reply_text
     
@@ -3309,14 +3312,19 @@ def main():
     async def logged_reply_text(self, *args, **kwargs):
         # Call original
         result = await original_reply_text(self, *args, **kwargs)
-        # Log it
+        # Log it (only once per message)
         try:
-            user = self.from_user or self.chat
             text = args[0] if args else kwargs.get('text', '')
-            username = user.username or user.first_name if hasattr(user, 'first_name') else str(user.id)
-            # Strip markdown for logging
-            clean_text = text.replace("**", "").replace("__", "").replace("*", "").replace("_", "")
-            log_bot_message("text", user.id, username, clean_text[:500], "sent")
+            msg_key = f"{self.chat.id}_{text[:50]}_{result.message_id}"
+            
+            if msg_key not in logged_messages:
+                logged_messages.add(msg_key)
+                # Get target user from the message we're replying to
+                user = self.from_user or self.chat
+                username = user.username or user.first_name if hasattr(user, 'first_name') else str(user.id)
+                # Strip markdown for logging
+                clean_text = text.replace("**", "").replace("__", "").replace("*", "").replace("_", "")
+                log_bot_message("text", user.id, username, clean_text[:500], "sent")
         except Exception as e:
             logger.warning(f"Failed to log reply: {e}")
         return result
@@ -3330,14 +3338,18 @@ def main():
     async def logged_send_message(self, chat_id, text, *args, **kwargs):
         # Call original
         result = await original_send_message(self, chat_id, text, *args, **kwargs)
-        # Log it
+        # Log it (only once per message)
         try:
-            # Get username from user data if possible
-            user_data = get_user_by_telegram_id(chat_id)
-            username = user_data.get('telegram_username') if user_data else str(chat_id)
-            # Strip markdown for logging
-            clean_text = text.replace("**", "").replace("__", "").replace("*", "").replace("_", "")
-            log_bot_message("text", chat_id, username, clean_text[:500], "sent")
+            msg_key = f"{chat_id}_{text[:50]}_{result.message_id}"
+            
+            if msg_key not in logged_messages:
+                logged_messages.add(msg_key)
+                # Get username from user data
+                user_data = get_user_by_telegram_id(chat_id)
+                username = user_data.get('telegram_username') if user_data else str(chat_id)
+                # Strip markdown for logging
+                clean_text = text.replace("**", "").replace("__", "").replace("*", "").replace("_", "")
+                log_bot_message("text", chat_id, username, clean_text[:500], "sent")
         except Exception as e:
             logger.warning(f"Failed to log send_message: {e}")
         return result
