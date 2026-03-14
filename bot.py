@@ -2889,14 +2889,21 @@ async def background_poller(application):
                         
                         for season in all_season_requests:
                             season_num = season.get("seasonNumber")
-                            # Fix: Gebruik 'seasonAvailable' in plaats van 'available'
-                            is_available = season.get("seasonAvailable", False)
+                            episodes = season.get("episodes", [])
                             
-                            logger.debug(f"[{title}] Season {season_num}: seasonAvailable={is_available}")
+                            # Check episode-level availability (seasonAvailable is niet betrouwbaar in Ombi)
+                            total_episodes = len(episodes)
+                            available_episodes = sum(1 for ep in episodes if ep.get("available", False))
                             
-                            if not is_available:
+                            logger.info(f"[{title}] Season {season_num}: {available_episodes}/{total_episodes} episodes available")
+                            
+                            # Seizoen is beschikbaar als ALLE episodes beschikbaar zijn
+                            if total_episodes > 0 and available_episodes < total_episodes:
                                 all_seasons_available = False
                                 unavailable_seasons.append(season_num)
+                                logger.debug(f"[{title}] Season {season_num}: NOT fully available")
+                            else:
+                                logger.debug(f"[{title}] Season {season_num}: FULLY available")
                         
                         if not all_seasons_available:
                             logger.info(f"⏳ '{title}' (Request {request_id}) - Wacht op seizoen(en): {unavailable_seasons}")
