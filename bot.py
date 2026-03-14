@@ -2890,6 +2890,9 @@ async def background_poller(application):
                         for season in all_season_requests:
                             season_num = season.get("seasonNumber")
                             is_available = season.get("available", False)
+                            
+                            # DEBUG: Log alle velden in de season data
+                            logger.info(f"[{title}] Season {season_num} FULL DATA: {season}")
                             logger.debug(f"[{title}] Season {season_num}: available={is_available}")
                             
                             if not is_available:
