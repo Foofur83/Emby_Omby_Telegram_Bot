@@ -866,7 +866,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user_data or not user_data.get("approved"):
         if not user_data:
             # Nieuwe gebruiker - kort en privé systeem benadrukken
-            await update.message.reply_text(
+            await reply_and_log(
+                update.message,
                 f"👋 Hallo {user.first_name}!\n\n"
                 "🔐 **Privé Media Bot**\n\n"
                 "Deze bot is onderdeel van een gesloten media server voor uitgenodigde gebruikers.\n\n"
@@ -880,23 +881,27 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "━━━━━━━━━━━━━━━━━━━━━\n\n"
                 "❌ **Geen Emby Account?**\n"
                 "Neem eerst contact op met de beheerder.",
+                user,
                 parse_mode="Markdown"
             )
         else:
             # Al geregistreerd, nog niet goedgekeurd
             reg_date = user_data.get('registered_at', 'onbekend')[:10]
-            await update.message.reply_text(
+            await reply_and_log(
+                update.message,
                 f"👋 Hallo {user.first_name}!\n\n"
                 "⏳ **Wachten op Goedkeuring**\n\n"
                 f"Je registratie is verstuurd op **{reg_date}**.\n\n"
                 "De beheerder koppelt je account binnenkort. "
                 "Je krijgt automatisch een bericht als je goedgekeurd bent.\n\n"
                 "💡 Dit is een privé systeem voor bestaande Emby gebruikers.",
+                user,
                 parse_mode="Markdown"
             )
     else:
         # Goedgekeurde gebruiker - kort en vriendelijk
-        await update.message.reply_text(
+        await reply_and_log(
+            update.message,
             f"👋 Hey {user.first_name}!\n\n"
             f"✨ Ingelogd als: **{user_data.get('emby_username')}**\n\n"
             "🚀 **Snel starten:**\n"
@@ -909,6 +914,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "─────────────\n\n"
             "⚙️ Commands: /help | /status | /recent\n\n"
             "_Veel kijkplezier!_ 🍿",
+            user,
             parse_mode="Markdown"
         )
 
@@ -3291,6 +3297,53 @@ def main():
 
     bot_instance = OmbiEmbyBot(config)
 
+    # MONKEY PATCH: Auto-log all replies
+    from telegram import Message
+    from telegram import Bot
+    from functools import wraps
+    
+    # Wrap Message.reply_text
+    original_reply_text = Message.reply_text
+    
+    @wraps(original_reply_text)
+    async def logged_reply_text(self, *args, **kwargs):
+        # Call original
+        result = await original_reply_text(self, *args, **kwargs)
+        # Log it
+        try:
+            user = self.from_user or self.chat
+            text = args[0] if args else kwargs.get('text', '')
+            username = user.username or user.first_name if hasattr(user, 'first_name') else str(user.id)
+            # Strip markdown for logging
+            clean_text = text.replace("**", "").replace("__", "").replace("*", "").replace("_", "")
+            log_bot_message("text", user.id, username, clean_text[:500], "sent")
+        except Exception as e:
+            logger.warning(f"Failed to log reply: {e}")
+        return result
+    
+    Message.reply_text = logged_reply_text
+    
+    # Wrap Bot.send_message
+    original_send_message = Bot.send_message
+    
+    @wraps(original_send_message)
+    async def logged_send_message(self, chat_id, text, *args, **kwargs):
+        # Call original
+        result = await original_send_message(self, chat_id, text, *args, **kwargs)
+        # Log it
+        try:
+            # Get username from user data if possible
+            user_data = get_user_by_telegram_id(chat_id)
+            username = user_data.get('telegram_username') if user_data else str(chat_id)
+            # Strip markdown for logging
+            clean_text = text.replace("**", "").replace("__", "").replace("*", "").replace("_", "")
+            log_bot_message("text", chat_id, username, clean_text[:500], "sent")
+        except Exception as e:
+            logger.warning(f"Failed to log send_message: {e}")
+        return result
+    
+    Bot.send_message = logged_send_message
+    
     app = ApplicationBuilder().token(token).build()
     app.bot_data["bot_instance"] = bot_instance
     app.bot_data["config"] = config  # Voor access tot admin_telegram_id
