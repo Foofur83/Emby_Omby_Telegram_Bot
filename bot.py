@@ -370,11 +370,8 @@ class OmbiEmbyBot:
         for req in all_requests:
             req_id = req.get("requestId") or req.get("id")
             if req_id == request_id:
-                logger.info(f"Found Ombi request {request_id}: available={req.get('available', False)}")
-                return req
-        
-        logger.warning(f"Request ID {request_id} not found in Ombi")
-        return None
+                    title = req.get("title") or req.get("name", "Unknown")
+                    logger.info(f"Found Ombi request {request_id} ({title}): available={req.get('available', False)}")
 
     # Emby
     async def emby_search(self, title: str, content_type: str = "Movie"):
@@ -2847,7 +2844,7 @@ async def background_poller(application):
                 ombi_status = await bot.ombi_get_request_by_id(request_id, media_type=ctype.lower())
                 
                 if not ombi_status:
-                    logger.warning(f"Could not fetch Ombi status for request {request_id}")
+                    logger.warning(f"Could not fetch Ombi status for request {request_id} ('{title}')")
                     continue
                 
                 # Voor series: controleer of ALLE AANGEVRAAGDE seizoenen beschikbaar zijn
@@ -2856,9 +2853,14 @@ async def background_poller(application):
                     child_requests = ombi_status.get("childRequests", [])
                     all_season_requests = []
                     
+                    logger.debug(f"[{title}] childRequests found: {len(child_requests)}")
+                    
                     for child in child_requests:
                         season_requests = child.get("seasonRequests", [])
                         all_season_requests.extend(season_requests)
+                        logger.debug(f"[{title}] Added {len(season_requests)} season requests from child")
+                    
+                    logger.info(f"[{title}] Total season_requests: {len(all_season_requests)}")
                     
                     # Check of ALLE aangevraagde seizoenen beschikbaar zijn
                     if all_season_requests:
@@ -2867,17 +2869,21 @@ async def background_poller(application):
                         
                         for season in all_season_requests:
                             season_num = season.get("seasonNumber")
-                            if not season.get("available", False):
+                            is_available = season.get("available", False)
+                            logger.debug(f"[{title}] Season {season_num}: available={is_available}")
+                            
+                            if not is_available:
                                 all_seasons_available = False
                                 unavailable_seasons.append(season_num)
                         
                         if not all_seasons_available:
-                            logger.debug(f"'{title}' nog niet volledig beschikbaar - wacht op seizoen(en): {unavailable_seasons}")
+                            logger.info(f"⏳ '{title}' (Request {request_id}) - Wacht op seizoen(en): {unavailable_seasons}")
                             continue
                         
-                        logger.info(f"✅ '{title}' - ALLE aangevraagde seizoenen beschikbaar volgens Ombi!")
+                        logger.info(f"✅ '{title}' (Request {request_id}) - ALLE aangevraagde seizoenen beschikbaar volgens Ombi!")
                     else:
                         # Geen season details - check het algemene available veld
+                        logger.warning(f"[{title}] No season_requests found! Checking parent available field")
                         if not ombi_status.get("available", False):
                             logger.debug(f"'{title}' nog niet beschikbaar volgens Ombi")
                             continue
