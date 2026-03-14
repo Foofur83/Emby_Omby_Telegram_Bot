@@ -140,6 +140,15 @@ def log_bot_message(message_type: str, user_id: int, username: str, message: str
         json.dump(logs, f, ensure_ascii=False, indent=2)
 
 
+async def reply_and_log(message, text, user, **kwargs):
+    """Helper: Send reply_text and automatically log it"""
+    await message.reply_text(text, **kwargs)
+    username = user.username or user.first_name
+    # Strip markdown for logging
+    clean_text = text.replace("**", "").replace("__", "").replace("*", "").replace("_", "")
+    log_bot_message("text", user.id, username, clean_text[:500], "sent")
+
+
 def get_user_by_telegram_id(telegram_id: int):
     """Haal gebruiker op via Telegram ID"""
     users = load_users()
@@ -1433,7 +1442,7 @@ async def notifications_command(update: Update, context: ContextTypes.DEFAULT_TY
     await update.message.reply_text("❌ Gebruiker niet gevonden.")
 
 
-async def show_result(context: ContextTypes.DEFAULT_TYPE, chat_id: int, result: dict, index: int, total: int, message_id: int = None):
+async def show_result(context: ContextTypes.DEFAULT_TYPE, chat_id: int, result: dict, index: int, total: int, message_id: int = None, user=None):
     """Toon 1 resultaat met poster en ja/nee knoppen"""
     name = result.get("title", "Onbekend")
     year = (result.get("releaseDate", ""))[:4]
@@ -1444,6 +1453,12 @@ async def show_result(context: ContextTypes.DEFAULT_TYPE, chat_id: int, result: 
     
     status_text = "\u2705 Al beschikbaar" if available else "\u2b55 Nog niet beschikbaar"
     caption = f"{type_icon} **{name}** ({year})\n\n{overview}...\n\n{status_text}\n({index + 1}/{total})\n\nIs dit wat je zoekt?"
+    
+    # Log dit zoekresultaat
+    if user:
+        username = user.username or user.first_name
+        log_text = f"{type_icon} {name} ({year})\n{status_text}\n({index + 1}/{total}) Is dit wat je zoekt?"
+        log_bot_message("text", user.id, username, log_text, "sent")
     
     # Poster URL - Probeer alle mogelijke velden
     # Ombi kan verschillende veldnamen gebruiken: posterPath, banner, poster, background
@@ -2178,7 +2193,8 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             results[next_index],
             next_index,
             len(results),
-            query.message.message_id
+            query.message.message_id,
+            user
         )
     
     elif data == "manual_entry":
