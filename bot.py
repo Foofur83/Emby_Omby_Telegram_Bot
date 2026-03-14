@@ -3030,12 +3030,15 @@ async def background_poller(application):
                                 parse_mode="Markdown",
                                 reply_markup=keyboard
                             )
+                            log_bot_message(uid, "bot", message)
                         else:
+                            full_message = message + "\n\n💡 Gebruik /register om je account te koppelen voor direct afspelen!"
                             await application.bot.send_message(
                                 chat_id=uid, 
-                                text=message + "\n\n💡 Gebruik /register om je account te koppelen voor direct afspelen!",
+                                text=full_message,
                                 parse_mode="Markdown"
                             )
+                            log_bot_message(uid, "bot", full_message)
                     except Exception:
                         logger.exception("Failed to send notification to %s", uid)
             
