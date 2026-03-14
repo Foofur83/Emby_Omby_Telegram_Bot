@@ -370,8 +370,12 @@ class OmbiEmbyBot:
         for req in all_requests:
             req_id = req.get("requestId") or req.get("id")
             if req_id == request_id:
-                    title = req.get("title") or req.get("name", "Unknown")
-                    logger.info(f"Found Ombi request {request_id} ({title}): available={req.get('available', False)}")
+                title = req.get("title") or req.get("name", "Unknown")
+                logger.info(f"Found Ombi request {request_id} ({title}): available={req.get('available', False)}")
+                return req
+        
+        logger.warning(f"Request ID {request_id} not found in Ombi")
+        return None
 
     # Emby
     async def emby_search(self, title: str, content_type: str = "Movie"):
