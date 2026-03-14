@@ -44,6 +44,7 @@ if not os.path.exists(CONFIG_FILE):
 DATA_DIR = "data"
 REQUESTS_FILE = os.path.join(DATA_DIR, "requests.json")
 USERS_FILE = os.path.join(DATA_DIR, "users.json")
+MESSAGES_FILE = os.path.join(DATA_DIR, "pending_messages.json")
 
 
 def get_admin_password():
@@ -215,6 +216,100 @@ def delete_user(telegram_id):
     save_json(USERS_FILE, users)
     
     flash('Gebruiker verwijderd!', 'success')
+    return redirect(url_for('users'))
+
+
+@app.route('/users/create', methods=['POST'])
+@require_auth
+def create_user():
+    """Handmatig een gebruiker aanmaken en koppelen"""
+    telegram_id = request.form.get('telegram_id')
+    first_name = request.form.get('first_name')
+    last_name = request.form.get('last_name', '')
+    emby_username = request.form.get('emby_username')
+    
+    # Validatie
+    if not telegram_id or not first_name or not emby_username:
+        flash('Telegram ID, voornaam en Emby gebruikersnaam zijn verplicht!', 'error')
+        return redirect(url_for('users'))
+    
+    try:
+        telegram_id = int(telegram_id)
+    except ValueError:
+        flash('Telegram ID moet een nummer zijn!', 'error')
+        return redirect(url_for('users'))
+    
+    # Check of gebruiker al bestaat
+    users = load_json(USERS_FILE)
+    existing_user = next((u for u in users if u.get('telegram_user_id') == telegram_id), None)
+    
+    if existing_user:
+        flash(f'Gebruiker met Telegram ID {telegram_id} bestaat al!', 'error')
+        return redirect(url_for('users'))
+    
+    # Maak nieuwe gebruiker aan
+    new_user = {
+        'telegram_user_id': telegram_id,
+        'telegram_first_name': first_name,
+        'telegram_last_name': last_name,
+        'telegram_username': '',  # Niet bekend bij handmatig aanmaken
+        'emby_username': emby_username,
+        'approved': True,
+        'episode_notifications': True,
+        'requested_at': datetime.now().isoformat(),
+        'approved_at': datetime.now().isoformat(),
+        'manual_creation': True  # Flag om aan te geven dat deze handmatig is aangemaakt
+    }
+    
+    users.append(new_user)
+    save_json(USERS_FILE, users)
+    
+    flash(f'Gebruiker {first_name} succesvol aangemaakt en gekoppeld aan Emby account "{emby_username}"!', 'success')
+    return redirect(url_for('users'))
+
+
+@app.route('/users/send-message', methods=['POST'])
+@require_auth
+def send_message_to_user():
+    """Stuur een handmatig bericht naar een specifieke gebruiker"""
+    telegram_id = request.form.get('telegram_id')
+    message = request.form.get('message')
+    
+    # Validatie
+    if not telegram_id or not message:
+        flash('Telegram ID en bericht zijn verplicht!', 'error')
+        return redirect(url_for('users'))
+    
+    try:
+        telegram_id = int(telegram_id)
+    except ValueError:
+        flash('Telegram ID moet een nummer zijn!', 'error')
+        return redirect(url_for('users'))
+    
+    # Check of gebruiker bestaat
+    users = load_json(USERS_FILE)
+    user = next((u for u in users if u.get('telegram_user_id') == telegram_id), None)
+    
+    if not user:
+        flash(f'Gebruiker met Telegram ID {telegram_id} niet gevonden!', 'error')
+        return redirect(url_for('users'))
+    
+    # Laad pending messages
+    messages = load_json(MESSAGES_FILE)
+    
+    # Voeg nieuw bericht toe
+    new_message = {
+        'telegram_user_id': telegram_id,
+        'message': message,
+        'created_at': datetime.now().isoformat(),
+        'sent': False
+    }
+    
+    messages.append(new_message)
+    save_json(MESSAGES_FILE, messages)
+    
+    user_name = f"{user.get('telegram_first_name')} {user.get('telegram_last_name', '')}".strip()
+    flash(f'Bericht naar {user_name} is toegevoegd aan de wachtrij! De bot zal het binnen enkele seconden versturen.', 'success')
     return redirect(url_for('users'))
 
 

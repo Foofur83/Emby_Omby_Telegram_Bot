@@ -15,6 +15,7 @@ import re
 DATA_FILE = os.path.join(os.path.dirname(__file__), "data", "requests.json")
 USERS_FILE = os.path.join(os.path.dirname(__file__), "data", "users.json")
 EPISODE_NOTIFICATIONS_FILE = os.path.join(os.path.dirname(__file__), "data", "episode_notifications.json")
+MESSAGES_FILE = os.path.join(os.path.dirname(__file__), "data", "pending_messages.json")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -32,6 +33,9 @@ def ensure_data_dir():
     if not os.path.exists(EPISODE_NOTIFICATIONS_FILE):
         with open(EPISODE_NOTIFICATIONS_FILE, "w", encoding="utf-8") as f:
             json.dump({}, f)
+    if not os.path.exists(MESSAGES_FILE):
+        with open(MESSAGES_FILE, "w", encoding="utf-8") as f:
+            json.dump([], f)
 
 
 def load_requests():
@@ -80,6 +84,23 @@ def save_episode_notifications(data):
     """Save episode notification tracking"""
     ensure_data_dir()
     with open(EPISODE_NOTIFICATIONS_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def load_pending_messages():
+    """Load pending messages from web interface"""
+    ensure_data_dir()
+    try:
+        with open(MESSAGES_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except:
+        return []
+
+
+def save_pending_messages(data):
+    """Save pending messages"""
+    ensure_data_dir()
+    with open(MESSAGES_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
@@ -2691,10 +2712,55 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🤔 Ik begreep dat niet helemaal.\n\n💡 Stuur me alleen de titel van een film of serie!\n\nVoorbeelden:\n• Predator\n• Inception\n• Stranger Things\n\nOf gebruik /help voor hulp.")
 
 
+async def send_pending_messages(application):
+    """Check en verstuur pending messages uit de webinterface"""
+    try:
+        messages = load_pending_messages()
+        if not messages:
+            return
+        
+        updated_messages = []
+        for msg in messages:
+            if msg.get('sent'):
+                continue
+            
+            telegram_id = msg.get('telegram_user_id')
+            message_text = msg.get('message')
+            
+            if not telegram_id or not message_text:
+                continue
+            
+            try:
+                await application.bot.send_message(
+                    chat_id=telegram_id,
+                    text=message_text,
+                    parse_mode="Markdown"
+                )
+                msg['sent'] = True
+                msg['sent_at'] = datetime.now(timezone.utc).isoformat()
+                logger.info(f"✅ Sent manual message to user {telegram_id}")
+            except Exception as e:
+                logger.error(f"Failed to send manual message to {telegram_id}: {e}")
+                # Keep in queue for retry
+                updated_messages.append(msg)
+        
+        # Clean up sent messages older than 24 hours
+        cutoff = datetime.now(timezone.utc) - timedelta(days=1)
+        messages = [m for m in messages if not m.get('sent') or 
+                   (m.get('sent_at') and datetime.fromisoformat(m['sent_at'].replace('Z', '+00:00')) > cutoff)]
+        
+        save_pending_messages(messages)
+    except Exception as e:
+        logger.error(f"Error processing pending messages: {e}")
+
+
 async def background_poller(application):
     bot: OmbiEmbyBot = application.bot_data["bot_instance"]
     while True:
         try:
+            # Check en verstuur pending messages uit webinterface
+            await send_pending_messages(application)
+            
             records = load_requests()
             changed = False
             
@@ -2733,17 +2799,7 @@ async def background_poller(application):
                     logger.warning(f"Could not fetch Ombi status for request {request_id}")
                     continue
                 
-                # Check available veld
-                is_available = ombi_status.get("available", False)
-                
-                if not is_available:
-                    logger.debug(f"'{title}' nog niet beschikbaar volgens Ombi")
-                    continue
-                
-                # Content is available! Nu verificatie doen
-                logger.info(f"✅ '{title}' is beschikbaar volgens Ombi!")
-                
-                # Voor series: check episode counts PER SEIZOEN
+                # Voor series: controleer of ALLE AANGEVRAAGDE seizoenen beschikbaar zijn
                 if ctype == "Series":
                     # Haal requested seasons data uit Ombi
                     child_requests = ombi_status.get("childRequests", [])
@@ -2752,6 +2808,43 @@ async def background_poller(application):
                     for child in child_requests:
                         season_requests = child.get("seasonRequests", [])
                         all_season_requests.extend(season_requests)
+                    
+                    # Check of ALLE aangevraagde seizoenen beschikbaar zijn
+                    if all_season_requests:
+                        all_seasons_available = True
+                        unavailable_seasons = []
+                        
+                        for season in all_season_requests:
+                            season_num = season.get("seasonNumber")
+                            if not season.get("available", False):
+                                all_seasons_available = False
+                                unavailable_seasons.append(season_num)
+                        
+                        if not all_seasons_available:
+                            logger.debug(f"'{title}' nog niet volledig beschikbaar - wacht op seizoen(en): {unavailable_seasons}")
+                            continue
+                        
+                        logger.info(f"✅ '{title}' - ALLE aangevraagde seizoenen beschikbaar volgens Ombi!")
+                    else:
+                        # Geen season details - check het algemene available veld
+                        if not ombi_status.get("available", False):
+                            logger.debug(f"'{title}' nog niet beschikbaar volgens Ombi")
+                            continue
+                        logger.info(f"✅ '{title}' is beschikbaar volgens Ombi!")
+                else:
+                    # Voor movies: check het normale available veld
+                    is_available = ombi_status.get("available", False)
+                    
+                    if not is_available:
+                        logger.debug(f"'{title}' nog niet beschikbaar volgens Ombi")
+                        continue
+                    
+                    logger.info(f"✅ '{title}' is beschikbaar volgens Ombi!")
+                
+                # Content is available! Nu verificatie doen
+                # Voor series: check episode counts PER SEIZOEN
+                if ctype == "Series":
+                    # all_season_requests is al gevuld hierboven
                     
                     if all_season_requests:
                         # Verifieer per-seizoen in Emby

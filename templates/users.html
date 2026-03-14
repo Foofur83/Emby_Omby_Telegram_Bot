@@ -6,6 +6,57 @@
 {% block content %}
 <div class="card">
     <h2>👥 Gebruikersbeheer</h2>
+    
+    <!-- Handmatig gebruiker toevoegen -->
+    <div style="background: #1e293b; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+        <h3 style="margin-top: 0;">➕ Nieuwe gebruiker aanmaken</h3>
+        <form method="POST" action="{{ url_for('create_user') }}" style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr auto; gap: 10px; align-items: end;">
+            <div>
+                <label for="telegram_id" style="display: block; margin-bottom: 5px; font-size: 0.9rem;">Telegram ID *</label>
+                <input type="text" id="telegram_id" name="telegram_id" placeholder="123456789" required style="width: 100%; padding: 8px; font-size: 0.9rem;">
+            </div>
+            <div>
+                <label for="first_name" style="display: block; margin-bottom: 5px; font-size: 0.9rem;">Voornaam *</label>
+                <input type="text" id="first_name" name="first_name" placeholder="Jan" required style="width: 100%; padding: 8px; font-size: 0.9rem;">
+            </div>
+            <div>
+                <label for="last_name" style="display: block; margin-bottom: 5px; font-size: 0.9rem;">Achternaam</label>
+                <input type="text" id="last_name" name="last_name" placeholder="Jansen" style="width: 100%; padding: 8px; font-size: 0.9rem;">
+            </div>
+            <div>
+                <label for="emby_username" style="display: block; margin-bottom: 5px; font-size: 0.9rem;">Emby Username *</label>
+                <input type="text" id="emby_username" name="emby_username" placeholder="jan.jansen" required style="width: 100%; padding: 8px; font-size: 0.9rem;">
+            </div>
+            <div>
+                <button type="submit" class="btn-success" style="padding: 8px 16px; white-space: nowrap;">✓ Aanmaken</button>
+            </div>
+        </form>
+        <p style="margin-top: 10px; margin-bottom: 0; font-size: 0.85rem; color: #94a3b8;">
+            💡 Tip: Het Telegram ID kun je vinden door de bot te starten. De gebruiker wordt direct goedgekeurd.
+        </p>
+    </div>
+    
+    <!-- Bericht sturen naar gebruiker -->
+    <div style="background: #1e293b; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+        <h3 style="margin-top: 0;">💬 Bericht sturen naar gebruiker</h3>
+        <form method="POST" action="{{ url_for('send_message_to_user') }}" style="display: grid; grid-template-columns: 200px 1fr auto; gap: 10px; align-items: end;">
+            <div>
+                <label for="message_telegram_id" style="display: block; margin-bottom: 5px; font-size: 0.9rem;">Telegram ID *</label>
+                <input type="text" id="message_telegram_id" name="telegram_id" placeholder="123456789" required style="width: 100%; padding: 8px; font-size: 0.9rem;">
+            </div>
+            <div>
+                <label for="message_text" style="display: block; margin-bottom: 5px; font-size: 0.9rem;">Bericht *</label>
+                <textarea id="message_text" name="message" placeholder="Je bericht hier..." required style="width: 100%; padding: 8px; font-size: 0.9rem; min-height: 60px; resize: vertical;"></textarea>
+            </div>
+            <div>
+                <button type="submit" class="btn-success" style="padding: 8px 16px; white-space: nowrap; height: 60px;">📤 Verstuur</button>
+            </div>
+        </form>
+        <p style="margin-top: 10px; margin-bottom: 0; font-size: 0.85rem; color: #94a3b8;">
+            💡 Het bericht wordt verstuurd vanuit de bot. Gebruik Markdown formatting indien gewenst (**vet**, *cursief*, `code`).
+        </p>
+    </div>
+    
     {% if users %}
     <table>
         <thead>
@@ -21,7 +72,12 @@
         <tbody>
             {% for user in users %}
             <tr>
-                <td>{{ user.telegram_first_name }} {{ user.telegram_last_name or '' }}</td>
+                <td>
+                    {{ user.telegram_first_name }} {{ user.telegram_last_name or '' }}
+                    {% if user.manual_creation %}
+                    <span style="font-size: 0.75rem; color: #94a3b8;" title="Handmatig aangemaakt via webinterface">✋</span>
+                    {% endif %}
+                </td>
                 <td>{{ user.telegram_user_id }}</td>
                 <td>{{ user.emby_username or '-' }}</td>
                 <td>
