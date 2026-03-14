@@ -5,108 +5,35 @@
 
 {% block content %}
 <div class="card">
-    <h2>📜 Bot Message Logs</h2>
-    <p style="color: #94a3b8; margin-bottom: 20px;">Laatste 200 berichten tussen de bot en gebruikers</p>
+    <h2>� Bot Conversaties</h2>
+    <p style="color: #94a3b8; margin-bottom: 20px;">Laatste 200 berichten - Auto-refresh om de 10s</p>
     
     {% if logs %}
     <div style="background: #0f172a; border-radius: 8px; padding: 15px; max-height: 70vh; overflow-y: auto;">
         {% for log in logs %}
-        <div style="
-            margin-bottom: 15px; 
-            padding: 12px; 
-            background: {% if log.direction == 'received' %}#1e293b{% else %}#172033{% endif %}; 
-            border-left: 4px solid {% if log.direction == 'received' %}#3b82f6{% else %}#10b981{% endif %};
-            border-radius: 4px;
-        ">
-            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
-                <div>
-                    {% if log.direction == 'received' %}
-                        <span style="color: #3b82f6; font-weight: bold;">📩 Van</span>
-                    {% else %}
-                        <span style="color: #10b981; font-weight: bold;">📤 Naar</span>
-                    {% endif %}
-                    
-                    <span style="
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                        color: white;
-                        padding: 3px 10px;
-                        border-radius: 12px;
-                        font-weight: bold;
-                        margin-left: 8px;
-                        font-size: 0.9rem;
-                    ">{{ log.username }}</span>
-                    
-                    <span style="color: #64748b; font-size: 0.85rem; margin-left: 8px;">
-                        (ID: {{ log.user_id }})
-                    </span>
-                    
+        <div style="margin-bottom: 8px; padding: 8px 12px; background: {% if log.direction == 'received' %}#1e293b{% else %}#172033{% endif %}; border-left: 3px solid {% if log.direction == 'received' %}#3b82f6{% else %}#10b981{% endif %}; border-radius: 4px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 0.75rem;">{% if log.direction == 'received' %}📩{% else %}📤{% endif %}</span>
+                    <span style="color: #e2e8f0; font-weight: 600; font-size: 0.9rem;">{{ log.username }}</span>
                     {% if log.type == 'command' %}
-                        <span style="background: #8b5cf6; color: white; padding: 2px 8px; border-radius: 8px; font-size: 0.75rem; margin-left: 8px;">
-                            📟 COMMAND
-                        </span>
-                    {% elif log.type == 'manual' %}
-                        <span style="background: #f59e0b; color: white; padding: 2px 8px; border-radius: 8px; font-size: 0.75rem; margin-left: 8px;">
-                            ✍️ MANUAL
-                        </span>
+                        <span style="background: #8b5cf6; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.7rem;">CMD</span>
                     {% elif log.type == 'notification' %}
-                        <span style="background: #10b981; color: white; padding: 2px 8px; border-radius: 8px; font-size: 0.75rem; margin-left: 8px;">
-                            🔔 NOTIFICATION
-                        </span>
+                        <span style="background: #10b981; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.7rem;">🔔</span>
                     {% endif %}
                 </div>
-                <span style="color: #64748b; font-size: 0.8rem; white-space: nowrap;">
-                    {{ log.timestamp[:10] }} {{ log.timestamp[11:19] }}
-                </span>
+                <span style="color: #64748b; font-size: 0.75rem;">{{ log.timestamp[11:19] }}</span>
             </div>
-            
-            <div style="
-                color: #e2e8f0; 
-                background: #0f172a; 
-                padding: 10px; 
-                border-radius: 4px; 
-                font-family: monospace;
-                word-wrap: break-word;
-                white-space: pre-wrap;
-            ">{{ log.message }}</div>
+            <div style="color: #cbd5e1; font-size: 0.9rem; line-height: 1.4;">{{ log.message }}</div>
         </div>
         {% endfor %}
     </div>
-    
-    <div style="margin-top: 20px; padding: 15px; background: #1e293b; border-radius: 8px;">
-        <p style="margin: 0; color: #94a3b8; font-size: 0.9rem;">
-            💡 <strong>Tips:</strong>
-            <br>• 📩 Blauwe border = Ontvangen van gebruiker
-            <br>• 📤 Groene border = Verzonden door bot
-            <br>• Alleen de laatste 200 berichten worden bewaard
-            <br>• Logs worden automatisch bijgewerkt bij nieuwe berichten
-        </p>
-    </div>
-    
     {% else %}
-    <p style="color: #94a3b8; text-align: center; padding: 40px;">
-        Nog geen berichten gelogd. Start de bot om berichten te zien verschijnen!
-    </p>
+    <p style="color: #94a3b8; text-align: center; padding: 40px;">Nog geen berichten gelogd.</p>
     {% endif %}
 </div>
 
-<style>
-    /* Auto-refresh indicator */
-    .card h2::after {
-        content: " 🔄";
-        font-size: 0.8rem;
-        color: #10b981;
-        animation: spin 3s linear infinite;
-    }
-    
-    @keyframes spin {
-        100% { transform: rotate(360deg); }
-    }
-</style>
-
 <script>
-    // Auto-refresh every 10 seconds
-    setTimeout(() => {
-        location.reload();
-    }, 10000);
+    setTimeout(() => location.reload(), 10000);
 </script>
 {% endblock %}

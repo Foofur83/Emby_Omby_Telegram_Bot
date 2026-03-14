@@ -3030,7 +3030,8 @@ async def background_poller(application):
                                 parse_mode="Markdown",
                                 reply_markup=keyboard
                             )
-                            log_bot_message(uid, "bot", message)
+                            username = user.get("telegram_username") or user.get("emby_username") or str(uid)
+                            log_bot_message("notification", uid, username, message, "sent")
                         else:
                             full_message = message + "\n\n💡 Gebruik /register om je account te koppelen voor direct afspelen!"
                             await application.bot.send_message(
@@ -3038,7 +3039,8 @@ async def background_poller(application):
                                 text=full_message,
                                 parse_mode="Markdown"
                             )
-                            log_bot_message(uid, "bot", full_message)
+                            username = user.get("telegram_username") if user else str(uid)
+                            log_bot_message("notification", uid, username, full_message, "sent")
                     except Exception:
                         logger.exception("Failed to send notification to %s", uid)
             
