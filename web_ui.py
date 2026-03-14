@@ -45,6 +45,7 @@ DATA_DIR = "data"
 REQUESTS_FILE = os.path.join(DATA_DIR, "requests.json")
 USERS_FILE = os.path.join(DATA_DIR, "users.json")
 MESSAGES_FILE = os.path.join(DATA_DIR, "pending_messages.json")
+BOT_LOG_FILE = os.path.join(DATA_DIR, "bot_messages.json")
 
 
 def get_admin_password():
@@ -382,6 +383,20 @@ def clear_all_requests():
 def guide():
     """Gebruikershandleiding voor de web interface"""
     return render_template('guide.html')
+
+
+@app.route('/logs')
+@require_auth
+def logs():
+    """Bot message logs - laatste 200 berichten"""
+    try:
+        bot_logs = load_json(BOT_LOG_FILE)
+        # Reverse om nieuwste eerst te tonen
+        bot_logs.reverse()
+    except:
+        bot_logs = []
+    
+    return render_template('logs.html', logs=bot_logs)
 
 
 @app.route('/change-password', methods=['GET', 'POST'])

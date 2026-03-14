@@ -253,6 +253,7 @@
                 <a href="{{ url_for('config') }}" {% if request.endpoint == 'config' %}class="active"{% endif %}>Config</a>
                 <a href="{{ url_for('users') }}" {% if request.endpoint == 'users' %}class="active"{% endif %}>Users</a>
                 <a href="{{ url_for('requests_view') }}" {% if request.endpoint == 'requests_view' %}class="active"{% endif %}>Requests</a>
+                <a href="{{ url_for('logs') }}" {% if request.endpoint == 'logs' %}class="active"{% endif %}>📜 Logs</a>
                 <a href="{{ url_for('guide') }}" {% if request.endpoint == 'guide' %}class="active"{% endif %}>📖 Guide</a>
                 <a href="{{ url_for('change_password') }}" {% if request.endpoint == 'change_password' %}class="active"{% endif %}>🔒 Pass</a>
                 <a href="{{ url_for('logout') }}">Logout</a>

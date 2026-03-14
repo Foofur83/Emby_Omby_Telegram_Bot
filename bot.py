@@ -16,6 +16,7 @@ DATA_FILE = os.path.join(os.path.dirname(__file__), "data", "requests.json")
 USERS_FILE = os.path.join(os.path.dirname(__file__), "data", "users.json")
 EPISODE_NOTIFICATIONS_FILE = os.path.join(os.path.dirname(__file__), "data", "episode_notifications.json")
 MESSAGES_FILE = os.path.join(os.path.dirname(__file__), "data", "pending_messages.json")
+BOT_LOG_FILE = os.path.join(os.path.dirname(__file__), "data", "bot_messages.json")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -35,6 +36,9 @@ def ensure_data_dir():
             json.dump({}, f)
     if not os.path.exists(MESSAGES_FILE):
         with open(MESSAGES_FILE, "w", encoding="utf-8") as f:
+            json.dump([], f)
+    if not os.path.exists(BOT_LOG_FILE):
+        with open(BOT_LOG_FILE, "w", encoding="utf-8") as f:
             json.dump([], f)
 
 
@@ -102,6 +106,38 @@ def save_pending_messages(data):
     ensure_data_dir()
     with open(MESSAGES_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def log_bot_message(message_type: str, user_id: int, username: str, message: str, direction: str = "sent"):
+    """
+    Log bot messages for web interface display
+    message_type: 'text', 'notification', 'manual', 'command'
+    direction: 'sent' or 'received'
+    """
+    ensure_data_dir()
+    try:
+        with open(BOT_LOG_FILE, "r", encoding="utf-8") as f:
+            logs = json.load(f)
+    except:
+        logs = []
+    
+    log_entry = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "type": message_type,
+        "user_id": user_id,
+        "username": username,
+        "message": message[:500],  # Limit message length
+        "direction": direction
+    }
+    
+    logs.append(log_entry)
+    
+    # Keep only last 200 messages
+    if len(logs) > 200:
+        logs = logs[-200:]
+    
+    with open(BOT_LOG_FILE, "w", encoding="utf-8") as f:
+        json.dump(logs, f, ensure_ascii=False, indent=2)
 
 
 def get_user_by_telegram_id(telegram_id: int):
@@ -797,6 +833,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_data = get_user_by_telegram_id(user.id)
     
+    # Log incoming command
+    log_bot_message("command", user.id, user.username or user.first_name, "/start", "received")
+    
     # Eerste keer - niet geregistreerd of niet goedgekeurd (anti-spam versie)
     if not user_data or not user_data.get("approved"):
         if not user_data:
@@ -853,6 +892,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_data = get_user_by_telegram_id(user.id)
     is_approved = user_data and user_data.get("approved")
+    
+    # Log incoming command
+    log_bot_message("command", user.id, user.username or user.first_name, "/help", "received")
     
     # Niet-geregistreerde of niet-goedgekeurde gebruikers krijgen minimale help
     if not is_approved:
@@ -2267,6 +2309,9 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     user = update.effective_user
 
+    # Log incoming text message
+    log_bot_message("text", user.id, user.username or user.first_name, text, "received")
+
     pending = context.application.bot_data.setdefault("pending", {})
     state = pending.get(user.id)
     
@@ -2738,6 +2783,12 @@ async def send_pending_messages(application):
                 )
                 msg['sent'] = True
                 msg['sent_at'] = datetime.now(timezone.utc).isoformat()
+                
+                # Log manual message
+                user_data = get_user_by_telegram_id(telegram_id)
+                username = user_data.get('telegram_username') or user_data.get('telegram_first_name') if user_data else str(telegram_id)
+                log_bot_message("manual", telegram_id, username, message_text, "sent")
+                
                 logger.info(f"✅ Sent manual message to user {telegram_id}")
             except Exception as e:
                 logger.error(f"Failed to send manual message to {telegram_id}: {e}")
