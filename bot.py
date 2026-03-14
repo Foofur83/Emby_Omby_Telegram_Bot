@@ -369,12 +369,28 @@ class OmbiEmbyBot:
         # Zoek de specifieke request
         for req in all_requests:
             req_id = req.get("requestId") or req.get("id")
+            
+            # DEBUG: Log alle IDs die we vinden
+            title = req.get("title") or req.get("name", "Unknown")
+            logger.debug(f"Checking request: {title}, parent ID={req_id}, mediaType={req.get('mediaType')}")
+            
+            # Check parent level ID
             if req_id == request_id:
-                title = req.get("title") or req.get("name", "Unknown")
                 logger.info(f"Found Ombi request {request_id} ({title}): available={req.get('available', False)}")
                 return req
+            
+            # For TV shows, also check childRequests IDs
+            if req.get("mediaType") == "tv":
+                child_requests = req.get("childRequests", [])
+                logger.debug(f"  {title} has {len(child_requests)} childRequests")
+                for child in child_requests:
+                    child_id = child.get("id") or child.get("requestId")
+                    logger.debug(f"    child ID: {child_id}")
+                    if child_id == request_id:
+                        logger.info(f"Found Ombi request {request_id} ({title}) in childRequests: available={req.get('available', False)}")
+                        return req
         
-        logger.warning(f"Request ID {request_id} not found in Ombi")
+        logger.warning(f"Request ID {request_id} not found in Ombi (checked parent and child IDs)")
         return None
 
     # Emby
