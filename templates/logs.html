@@ -15,7 +15,13 @@
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <span style="font-size: 0.75rem;">{% if log.direction == 'received' %}📩{% else %}📤{% endif %}</span>
-                    <span style="color: #e2e8f0; font-weight: 600; font-size: 0.9rem;">{{ log.username }}</span>
+                    <span style="color: #e2e8f0; font-weight: 600; font-size: 0.9rem;">
+                        {% if log.direction == 'received' %}
+                            {{ log.username }}
+                        {% else %}
+                            Bot
+                        {% endif %}
+                    </span>
                     {% if log.type == 'command' %}
                         <span style="background: #8b5cf6; color: white; padding: 1px 6px; border-radius: 4px; font-size: 0.7rem;">CMD</span>
                     {% elif log.type == 'notification' %}
